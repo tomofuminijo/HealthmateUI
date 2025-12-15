@@ -22,7 +22,7 @@ def load_aws_config():
         cf_client = boto3.client('cloudformation', region_name=region)
         
         # Get stack name from environment or use default
-        stack_name = os.getenv("HEALTH_STACK_NAME", "healthmate-stack")
+        stack_name = os.getenv("HEALTH_STACK_NAME", "HealthManagerMCPStack")
         
         print(f"   📋 Checking CloudFormation stack: {stack_name}")
         

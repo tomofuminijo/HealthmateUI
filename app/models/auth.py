@@ -25,8 +25,8 @@ class CognitoTokens(BaseModel):
 class UserInfo(BaseModel):
     """User information from Cognito"""
     user_id: str = Field(..., alias="sub", description="User ID (Cognito sub)")
-    email: str = Field(..., description="User email")
-    email_verified: bool = Field(default=False, description="Email verification status")
+    email: Optional[str] = Field(None, description="User email")
+    email_verified: Optional[bool] = Field(None, description="Email verification status")
     username: Optional[str] = Field(None, description="Username")
     given_name: Optional[str] = Field(None, description="Given name")
     family_name: Optional[str] = Field(None, description="Family name")
