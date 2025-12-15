@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block nav_items %}
+<div class="flex items-center space-x-4">
+    <a href="/login" class="text-gray-600 hover:text-gray-900">ログイン</a>
+    <a href="/chat" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">チャットを開始</a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="text-center">
+    <!-- Hero Section -->
+    <div class="max-w-4xl mx-auto py-16 px-4">
+        <h1 class="text-4xl font-bold text-gray-900 mb-6">
+            🏥 HealthmateUI へようこそ
+        </h1>
+        <p class="text-xl text-gray-600 mb-8">
+            AI駆動の包括的健康管理プラットフォーム<br>
+            あなたの健康目標達成をサポートします
+        </p>
+        
+        <!-- CTA Buttons -->
+        <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <a href="/login" 
+               class="bg-blue-600 text-white px-8 py-3 rounded-lg text-lg font-semibold hover:bg-blue-700 transition-colors">
+                ログインして開始
+            </a>
+            <a href="/chat" 
+               class="border border-blue-600 text-blue-600 px-8 py-3 rounded-lg text-lg font-semibold hover:bg-blue-50 transition-colors">
+                チャットを試す
+            </a>
+        </div>
+    </div>
+
+    <!-- Features Section -->
+    <div class="max-w-6xl mx-auto py-16 px-4">
+        <h2 class="text-3xl font-bold text-gray-900 mb-12">主な機能</h2>
+        
+        <div class="grid md:grid-cols-3 gap-8">
+            <!-- AI Health Coach -->
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <div class="text-4xl mb-4">🤖</div>
+                <h3 class="text-xl font-semibold text-gray-900 mb-3">AI健康コーチ</h3>
+                <p class="text-gray-600">
+                    パーソナライズされた健康アドバイスを24時間いつでも受けられます。
+                    あなたの健康データに基づいた最適な提案を提供します。
+                </p>
+            </div>
+
+            <!-- Health Data Management -->
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <div class="text-4xl mb-4">📊</div>
+                <h3 class="text-xl font-semibold text-gray-900 mb-3">健康データ管理</h3>
+                <p class="text-gray-600">
+                    目標設定、活動記録、健康ポリシーの管理など、
+                    包括的な健康データを一元管理できます。
+                </p>
+            </div>
+
+            <!-- Secure & Private -->
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <div class="text-4xl mb-4">🔒</div>
+                <h3 class="text-xl font-semibold text-gray-900 mb-3">セキュア & プライベート</h3>
+                <p class="text-gray-600">
+                    Amazon Cognitoによる安全な認証と、
+                    AWS上での暗号化されたデータ保護を提供します。
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Status -->
+    <div class="max-w-4xl mx-auto py-8 px-4">
+        <div class="bg-gray-50 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">システム状態</h3>
+            <div 
+                hx-get="/api/status"
+                hx-trigger="load"
+                hx-target="#system-status"
+                class="space-y-2">
+                <div id="system-status" class="text-gray-600">
+                    <div class="animate-pulse">システム状態を確認中...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// System status display
+document.body.addEventListener('htmx:afterRequest', function(evt) {
+    if (evt.detail.target.id === 'system-status') {
+        try {
+            const response = JSON.parse(evt.detail.xhr.response);
+            const statusHtml = `
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div class="flex items-center">
+                        <span class="w-3 h-3 rounded-full ${response.api_status === 'operational' ? 'bg-green-500' : 'bg-red-500'} mr-2"></span>
+                        API: ${response.api_status}
+                    </div>
+                    <div class="flex items-center">
+                        <span class="w-3 h-3 rounded-full ${response.cognito_configured ? 'bg-green-500' : 'bg-yellow-500'} mr-2"></span>
+                        Cognito: ${response.cognito_configured ? '設定済み' : '未設定'}
+                    </div>
+                    <div class="flex items-center">
+                        <span class="w-3 h-3 rounded-full ${response.healthcoach_configured ? 'bg-green-500' : 'bg-yellow-500'} mr-2"></span>
+                        HealthCoach: ${response.healthcoach_configured ? '設定済み' : '未設定'}
+                    </div>
+                </div>
+            `;
+            evt.detail.target.innerHTML = statusHtml;
+        } catch (error) {
+            evt.detail.target.innerHTML = '<div class="text-red-600">システム状態の取得に失敗しました</div>';
+        }
+    }
+});
+
+// Auto-redirect if already authenticated
+document.addEventListener('DOMContentLoaded', function() {
+    // Check authentication status
+    fetch('/api/auth/status')
+        .then(response => response.json())
+        .then(data => {
+            if (data.authenticated) {
+                // Show notification and redirect
+                HealthmateUI.utils.showNotification('既にログイン済みです。チャットページに移動します。', 'info');
+                setTimeout(() => {
+                    window.location.href = '/chat';
+                }, 2000);
+            }
+        })
+        .catch(error => {
+            // Ignore authentication check errors
+            console.log('Authentication check skipped');
+        });
+});
+</script>
+{% endblock %}

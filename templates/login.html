@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="min-h-full flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-md w-full space-y-8">
+        <!-- Header -->
+        <div class="text-center">
+            <h2 class="mt-6 text-3xl font-extrabold text-gray-900">
+                HealthCoach AI にログイン
+            </h2>
+            <p class="mt-2 text-sm text-gray-600">
+                Amazon Cognito を使用してセキュアにログインします
+            </p>
+        </div>
+
+        <!-- Login Form -->
+        <div class="bg-white py-8 px-6 shadow rounded-lg">
+            <div class="space-y-6">
+                <!-- Status Messages -->
+                <div id="login-status" class="hidden">
+                    <!-- Status messages will be inserted here -->
+                </div>
+
+                <!-- Cognito Login Button -->
+                <div>
+                    <button type="button" 
+                            id="cognito-login-btn"
+                            class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <span class="absolute left-0 inset-y-0 flex items-center pl-3">
+                            🔐
+                        </span>
+                        <span id="login-text">Cognito でログイン</span>
+                        <span id="login-spinner" class="hidden ml-2">
+                            <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </span>
+                    </button>
+                </div>
+
+                <!-- OAuth Callback Processing -->
+                <div id="callback-processing" class="hidden text-center">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                    <p class="mt-2 text-sm text-gray-600">認証処理中...</p>
+                </div>
+
+                <!-- Divider -->
+                <div class="relative">
+                    <div class="absolute inset-0 flex items-center">
+                        <div class="w-full border-t border-gray-300"></div>
+                    </div>
+                    <div class="relative flex justify-center text-sm">
+                        <span class="px-2 bg-white text-gray-500">または</span>
+                    </div>
+                </div>
+
+                <!-- Demo Mode (Development Only) -->
+                <div class="text-center">
+                    <button type="button" 
+                            id="demo-mode-btn"
+                            class="text-blue-600 hover:text-blue-500 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                        デモモードで続行 (開発用)
+                    </button>
+                </div>
+
+                <!-- Authentication Status Check (hidden) -->
+                <div 
+                    hx-get="/auth/status"
+                    hx-trigger="load"
+                    hx-target="#auth-status-result"
+                    class="hidden">
+                </div>
+                <div id="auth-status-result" class="hidden"></div>
+            </div>
+        </div>
+
+        <!-- System Information -->
+        <div class="bg-gray-50 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-700 mb-2">システム情報</h3>
+            <div class="text-xs text-gray-600 space-y-1">
+                <p>User Pool: {{ cognito_config.user_pool_id }}</p>
+                <p>Client ID: {{ cognito_config.client_id }}</p>
+                <p>Domain: {{ cognito_config.domain }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Cognito configuration
+const cognitoConfig = {{ cognito_config | tojson }};
+
+// Login interface
+class LoginInterface {
+    constructor() {
+        this.loginBtn = document.getElementById('cognito-login-btn');
+        this.loginText = document.getElementById('login-text');
+        this.loginSpinner = document.getElementById('login-spinner');
+        this.demoBtn = document.getElementById('demo-mode-btn');
+        this.statusDiv = document.getElementById('login-status');
+        this.callbackDiv = document.getElementById('callback-processing');
+        
+        this.init();
+    }
+    
+    init() {
+        // Check if we're handling an OAuth callback
+        this.checkOAuthCallback();
+        
+        // Setup event listeners
+        this.loginBtn.addEventListener('click', () => this.handleCognitoLogin());
+        this.demoBtn.addEventListener('click', () => this.handleDemoMode());
+        
+        // Setup htmx events
+        this.setupHtmxEvents();
+    }
+    
+    checkOAuthCallback() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        const error = urlParams.get('error');
+        const errorDescription = urlParams.get('error_description');
+        
+        if (code) {
+            // Handle OAuth callback with authorization code
+            this.handleOAuthCallback(code);
+        } else if (error) {
+            // Handle OAuth error
+            const errorMsg = errorDescription || error;
+            this.showError(`認証エラー: ${errorMsg}`);
+            
+            // Clear URL parameters after showing error
+            setTimeout(() => {
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }, 100);
+        }
+    }
+    
+    async handleOAuthCallback(code) {
+        this.showCallbackProcessing(true);
+        
+        try {
+            // Validate state parameter (CSRF protection)
+            const urlParams = new URLSearchParams(window.location.search);
+            const state = urlParams.get('state');
+            const storedState = sessionStorage.getItem('oauth_state');
+            
+            if (state && storedState && state !== storedState) {
+                throw new Error('Invalid state parameter - possible CSRF attack');
+            }
+            
+            // Clear stored state
+            sessionStorage.removeItem('oauth_state');
+            
+            const response = await fetch('/auth/callback', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ 
+                    code,
+                    state,
+                    next: new URLSearchParams(window.location.search).get('next')
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showSuccess('ログインに成功しました。リダイレクト中...');
+                
+                // Debug: Check if cookies were set
+                console.log('Cookies after login:', document.cookie);
+                
+                // Clear URL parameters
+                window.history.replaceState({}, document.title, window.location.pathname);
+                
+                // Redirect to specified URL or chat page
+                const redirectUrl = result.redirect_url || '/chat';
+                setTimeout(() => {
+                    window.location.href = redirectUrl;
+                }, 1000);
+            } else {
+                this.showError(result.error || 'ログインに失敗しました');
+            }
+        } catch (error) {
+            console.error('OAuth callback error:', error);
+            this.showError('認証処理中にエラーが発生しました: ' + error.message);
+        } finally {
+            this.showCallbackProcessing(false);
+        }
+    }
+    
+    handleCognitoLogin() {
+        this.setLoading(true);
+        
+        try {
+            // Construct OAuth URL
+            const params = new URLSearchParams({
+                response_type: 'code',
+                client_id: cognitoConfig.client_id,
+                redirect_uri: cognitoConfig.callback_url,
+                scope: cognitoConfig.scopes.join(' '),
+                state: this.generateState()
+            });
+            
+            const authUrl = `${cognitoConfig.authorization_url}?${params.toString()}`;
+            
+            // Store state for validation
+            sessionStorage.setItem('oauth_state', params.get('state'));
+            
+            // Redirect to Cognito
+            window.location.href = authUrl;
+        } catch (error) {
+            console.error('Login error:', error);
+            this.showError('ログイン処理中にエラーが発生しました');
+            this.setLoading(false);
+        }
+    }
+    
+    async handleDemoMode() {
+        this.setLoading(true, 'demo');
+        
+        try {
+            const response = await fetch('/auth/demo', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                this.showSuccess('デモモードでログインしました');
+                setTimeout(() => {
+                    window.location.href = '/chat';
+                }, 1000);
+            } else {
+                this.showError(result.error || 'デモモードログインに失敗しました');
+            }
+        } catch (error) {
+            console.error('Demo mode error:', error);
+            this.showError('デモモード処理中にエラーが発生しました');
+        } finally {
+            this.setLoading(false, 'demo');
+        }
+    }
+    
+    setupHtmxEvents() {
+        // Handle auth status check results
+        document.body.addEventListener('htmx:beforeSwap', (e) => {
+            if (e.detail.target.id === 'auth-status-result') {
+                // Prevent htmx from inserting the JSON response into the DOM
+                e.preventDefault();
+                
+                try {
+                    const data = JSON.parse(e.detail.xhr.response);
+                    if (data.is_authenticated) {
+                        // User is already authenticated, redirect to chat
+                        console.log('User already authenticated, redirecting to chat...');
+                        window.location.href = '/chat';
+                    }
+                } catch (error) {
+                    // Ignore parsing errors
+                    console.log('Auth status check completed');
+                }
+            }
+        });
+        
+        // Debug: Check cookies periodically (development only)
+        if (window.location.hostname === 'localhost' && console && console.log) {
+            setInterval(() => {
+                const cookies = document.cookie;
+                if (cookies) {
+                    console.log('Current cookies:', cookies);
+                }
+            }, 10000); // Reduced frequency to 10 seconds
+        }
+    }
+    
+    generateState() {
+        return Math.random().toString(36).substring(2, 15) + 
+               Math.random().toString(36).substring(2, 15);
+    }
+    
+    setLoading(loading, type = 'cognito') {
+        if (type === 'cognito') {
+            this.loginBtn.disabled = loading;
+            if (loading) {
+                this.loginText.textContent = '処理中...';
+                this.loginSpinner.classList.remove('hidden');
+            } else {
+                this.loginText.textContent = 'Cognito でログイン';
+                this.loginSpinner.classList.add('hidden');
+            }
+        } else if (type === 'demo') {
+            this.demoBtn.disabled = loading;
+        }
+    }
+    
+    showCallbackProcessing(show) {
+        if (show) {
+            this.callbackDiv.classList.remove('hidden');
+        } else {
+            this.callbackDiv.classList.add('hidden');
+        }
+    }
+    
+    showStatus(message, type = 'info') {
+        const statusClasses = {
+            info: 'bg-blue-50 border-blue-200 text-blue-800',
+            success: 'bg-green-50 border-green-200 text-green-800',
+            error: 'bg-red-50 border-red-200 text-red-800'
+        };
+        
+        this.statusDiv.className = `p-4 rounded-md border ${statusClasses[type]}`;
+        this.statusDiv.innerHTML = `
+            <div class="flex">
+                <div class="ml-3">
+                    <p class="text-sm font-medium">${HealthmateUI.utils.escapeHtml(message)}</p>
+                </div>
+            </div>
+        `;
+        this.statusDiv.classList.remove('hidden');
+        
+        // Auto-hide after 5 seconds for non-error messages
+        if (type !== 'error') {
+            setTimeout(() => {
+                this.statusDiv.classList.add('hidden');
+            }, 5000);
+        }
+    }
+    
+    showSuccess(message) {
+        this.showStatus(message, 'success');
+    }
+    
+    showError(message) {
+        this.showStatus(message, 'error');
+    }
+}
+
+// Initialize login interface
+document.addEventListener('DOMContentLoaded', () => {
+    new LoginInterface();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,321 @@
+/* HealthmateUI Custom Styles */
+
+/* Base styles */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Chat specific styles */
+#chat-messages {
+    scroll-behavior: smooth;
+}
+
+#chat-messages::-webkit-scrollbar {
+    width: 6px;
+}
+
+#chat-messages::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+#chat-messages::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+#chat-messages::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* Message animations */
+.message-fade-in {
+    animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Textarea auto-resize */
+#message-input {
+    resize: none;
+    min-height: 40px;
+    max-height: 120px;
+    transition: height 0.1s ease;
+}
+
+/* Loading states */
+.loading-dots::after {
+    content: '';
+    animation: dots 1.5s steps(5, end) infinite;
+}
+
+@keyframes dots {
+    0%, 20% { content: '.'; }
+    40% { content: '..'; }
+    60% { content: '...'; }
+    80%, 100% { content: ''; }
+}
+
+/* Button hover effects */
+.btn-primary {
+    @apply bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors duration-200;
+}
+
+.btn-secondary {
+    @apply bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-4 rounded-md transition-colors duration-200;
+}
+
+/* Card styles */
+.card {
+    @apply bg-white rounded-lg shadow-md p-6;
+}
+
+.card-header {
+    @apply border-b border-gray-200 pb-4 mb-4;
+}
+
+/* Status indicators */
+.status-online {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800;
+}
+
+.status-offline {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800;
+}
+
+.status-connecting {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+    .chat-container {
+        height: calc(100vh - 64px);
+    }
+    
+    #chat-messages {
+        padding: 1rem;
+    }
+    
+    .chat-input-container {
+        padding: 1rem;
+    }
+}
+
+/* Dark mode support (future enhancement) */
+@media (prefers-color-scheme: dark) {
+    /* Dark mode styles will be added here */
+}
+
+/* Print styles */
+@media print {
+    nav, footer, .chat-input-container {
+        display: none;
+    }
+    
+    #chat-messages {
+        height: auto;
+        overflow: visible;
+    }
+}
+
+/* htmx specific styles */
+.htmx-indicator {
+    display: none;
+}
+
+.htmx-request .htmx-indicator {
+    display: inline;
+}
+
+.htmx-request.htmx-indicator {
+    display: inline;
+}
+
+/* htmx transitions */
+.htmx-settling {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.htmx-request {
+    opacity: 0.8;
+    transition: opacity 0.1s ease;
+}
+
+.htmx-swapping {
+    opacity: 0;
+    transition: opacity 0.1s ease;
+}
+
+/* Form styles */
+.form-input {
+    @apply block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors duration-200;
+}
+
+.form-label {
+    @apply block text-sm font-medium text-gray-700 mb-1;
+}
+
+.form-error {
+    @apply text-red-600 text-sm mt-1;
+}
+
+/* Button styles */
+.btn {
+    @apply inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-200;
+}
+
+.btn-success {
+    @apply text-white bg-green-600 hover:bg-green-700 focus:ring-green-500;
+}
+
+.btn-danger {
+    @apply text-white bg-red-600 hover:bg-red-700 focus:ring-red-500;
+}
+
+/* Chat bubble styles */
+.chat-bubble {
+    @apply max-w-xs lg:max-w-md px-4 py-2 rounded-lg;
+}
+
+.chat-bubble.user {
+    @apply bg-blue-600 text-white;
+}
+
+.chat-bubble.assistant {
+    @apply bg-gray-200 text-gray-900;
+}
+
+.chat-bubble.error {
+    @apply bg-red-100 text-red-900 border border-red-200;
+}
+
+/* Notification styles */
+.notification {
+    @apply fixed top-4 right-4 z-50 p-4 rounded-md shadow-lg max-w-sm transition-all duration-300;
+}
+
+.notification.info {
+    @apply bg-blue-50 border border-blue-200 text-blue-800;
+}
+
+.notification.success {
+    @apply bg-green-50 border border-green-200 text-green-800;
+}
+
+.notification.warning {
+    @apply bg-yellow-50 border border-yellow-200 text-yellow-800;
+}
+
+.notification.error {
+    @apply bg-red-50 border border-red-200 text-red-800;
+}
+
+/* Loading and spinner styles */
+.loading {
+    @apply opacity-50 cursor-not-allowed;
+}
+
+.spinner {
+    @apply animate-spin rounded-full border-2 border-gray-300 border-t-blue-600;
+}
+
+/* Additional animations */
+@keyframes slideIn {
+    from { opacity: 0; transform: translateX(100%); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.slide-in {
+    animation: slideIn 0.3s ease-out;
+}
+
+.pulse {
+    animation: pulse 2s infinite;
+}
+
+/* Chat specific animations */
+.chat-message {
+    animation: fadeIn 0.4s ease-out;
+}
+
+.typing-indicator {
+    @apply inline-block w-2 h-4 bg-blue-500 rounded-sm;
+    animation: pulse 1.5s infinite;
+}
+
+.typing-indicator:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-indicator:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+/* Streaming response styles */
+.streaming-response {
+    @apply border-l-4 border-blue-500 bg-blue-50 rounded-r-lg;
+}
+
+.streaming-text {
+    @apply font-mono text-sm;
+}
+
+/* Status indicators */
+.status-indicator {
+    @apply inline-block w-3 h-3 rounded-full;
+}
+
+.status-indicator.online {
+    @apply bg-green-500;
+}
+
+.status-indicator.offline {
+    @apply bg-red-500;
+}
+
+.status-indicator.connecting {
+    @apply bg-yellow-500;
+    animation: pulse 1s infinite;
+}
+
+/* Accessibility improvements */
+.sr-only {
+    @apply absolute w-px h-px p-0 -m-px overflow-hidden whitespace-nowrap border-0;
+}
+
+/* Focus styles for better accessibility */
+.focus-visible {
+    @apply outline-none ring-2 ring-blue-500 ring-offset-2;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .btn {
+        @apply border-2;
+    }
+    
+    .chat-bubble {
+        @apply border border-gray-600;
+    }
+}
+
+/* Mobile responsive improvements */
+@media (max-width: 640px) {
+    .notification {
+        @apply left-4 right-4 max-w-none;
+    }
+    
+    .chat-bubble {
+        @apply max-w-xs;
+    }
+}

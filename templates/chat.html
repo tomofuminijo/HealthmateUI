@@ -1,0 +1,546 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block nav_items %}
+<button id="logout-btn" class="text-gray-600 hover:text-gray-900">ログアウト</button>
+{% endblock %}
+
+{% block content %}
+<div class="h-screen flex flex-col">
+    <!-- Chat Header -->
+    <div class="bg-white shadow-sm border-b px-6 py-4">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                    <span class="text-white text-sm font-semibold">🤖</span>
+                </div>
+                <div>
+                    <h1 class="text-lg font-semibold text-gray-900">HealthCoach AI</h1>
+                    <p class="text-sm text-gray-500" id="connection-status">接続中...</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    オンライン
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Messages Container -->
+    <div class="flex-1 overflow-hidden">
+        <div 
+            id="chat-messages" 
+            class="h-full overflow-y-auto px-6 py-4 space-y-4"
+            hx-get="/api/chat/history"
+            hx-trigger="load"
+            hx-swap="innerHTML">
+            <!-- Loading indicator -->
+            <div class="flex items-center justify-center py-8">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                <span class="ml-2 text-gray-500">チャット履歴を読み込み中...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Input -->
+    <div class="bg-white border-t px-6 py-4">
+        <form 
+            id="chat-form" 
+            class="flex space-x-3"
+            hx-post="/api/chat/send"
+            hx-target="#chat-messages"
+            hx-swap="beforeend"
+            hx-indicator="#send-spinner">
+            <div class="flex-1 relative">
+                <textarea 
+                    id="message-input"
+                    name="message"
+                    rows="1"
+                    class="block w-full resize-none border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-all duration-200"
+                    placeholder="メッセージを入力してください... (Enter: 送信, Shift+Enter: 改行, Esc: クリア)"
+                    maxlength="1000"
+                    required
+                    autocomplete="off"
+                    spellcheck="false"></textarea>
+                
+                <!-- Input hint overlay -->
+                <div class="absolute bottom-2 right-2 text-xs text-gray-400 pointer-events-none">
+                    <span class="hidden sm:inline">Ctrl+Enter: 送信</span>
+                </div>
+            </div>
+            <button 
+                type="submit"
+                id="send-button"
+                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                title="メッセージを送信 (Enter または Ctrl+Enter)">
+                <span id="send-text">送信</span>
+                <span id="send-spinner" class="htmx-indicator ml-2">
+                    <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </span>
+                <!-- Send icon -->
+                <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                </svg>
+            </button>
+        </form>
+        
+        <!-- Character Counter and Input Hints -->
+        <div class="mt-2 flex justify-between items-center">
+            <div class="text-xs text-gray-400">
+                <span class="hidden sm:inline">💡 ヒント: Enterで送信、Shift+Enterで改行、Escでクリア</span>
+                <span class="sm:hidden">💡 Enterで送信</span>
+            </div>
+            <div class="flex items-center space-x-2">
+                <span id="char-counter" class="text-xs text-gray-500">0/1000</span>
+                <button 
+                    type="button" 
+                    id="clear-input-btn"
+                    class="text-xs text-gray-400 hover:text-gray-600 transition-colors duration-200"
+                    title="入力をクリア (Esc)">
+                    クリア
+                </button>
+            </div>
+        </div>
+        
+        <!-- Streaming Response Container -->
+        <div id="streaming-response" class="hidden mt-4 p-4 bg-gray-50 rounded-lg">
+            <div class="flex items-start space-x-3">
+                <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                    <span class="text-white text-sm">🤖</span>
+                </div>
+                <div class="flex-1">
+                    <div class="bg-white rounded-lg px-4 py-2">
+                        <p id="streaming-text" class="text-gray-900"></p>
+                        <div id="typing-indicator" class="inline-block w-2 h-4 bg-blue-500 animate-pulse"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Chat functionality with htmx integration
+class ChatInterface {
+    constructor() {
+        this.messageInput = document.getElementById('message-input');
+        this.chatForm = document.getElementById('chat-form');
+        this.chatMessages = document.getElementById('chat-messages');
+        this.sendButton = document.getElementById('send-button');
+        this.sendText = document.getElementById('send-text');
+        this.sendSpinner = document.getElementById('send-spinner');
+        this.charCounter = document.getElementById('char-counter');
+        this.connectionStatus = document.getElementById('connection-status');
+        this.streamingResponse = document.getElementById('streaming-response');
+        this.streamingText = document.getElementById('streaming-text');
+        this.typingIndicator = document.getElementById('typing-indicator');
+        
+        this.eventSource = null;
+        this.isStreaming = false;
+        
+        this.init();
+    }
+    
+    init() {
+        // Auto-resize textarea
+        this.messageInput.addEventListener('input', () => this.handleInput());
+        
+        // Character counter and send button state
+        this.messageInput.addEventListener('input', () => {
+            this.updateCharCounter();
+            this.updateSendButtonState();
+        });
+        
+        // Enter key handling
+        this.messageInput.addEventListener('keydown', (e) => this.handleKeyDown(e));
+        
+        // Focus management
+        this.messageInput.addEventListener('focus', () => this.onInputFocus());
+        this.messageInput.addEventListener('blur', () => this.onInputBlur());
+        
+        // Clear button
+        document.getElementById('clear-input-btn').addEventListener('click', () => {
+            this.clearInput();
+        });
+        
+        // htmx event listeners
+        this.setupHtmxEvents();
+        
+        // Auto-scroll functionality
+        this.setupAutoScroll();
+        
+        // Set initial status
+        this.connectionStatus.textContent = '準備完了';
+        
+        // Initialize streaming connection
+        this.initializeStreaming();
+        
+        // Set initial focus
+        setTimeout(() => {
+            this.messageInput.focus();
+        }, 100);
+        
+        // Initial send button state
+        this.updateSendButtonState();
+        
+        // Initialize scroll position management
+        this.initializeScrollManagement();
+    }
+    
+    updateSendButtonState() {
+        const hasText = this.messageInput.value.trim().length > 0;
+        const isNotLoading = !this.sendButton.disabled;
+        
+        if (hasText && isNotLoading) {
+            this.sendButton.classList.remove('opacity-50');
+            this.sendButton.classList.add('hover:bg-blue-700');
+        } else {
+            this.sendButton.classList.add('opacity-50');
+            this.sendButton.classList.remove('hover:bg-blue-700');
+        }
+    }
+    
+    onInputFocus() {
+        // Visual feedback when input is focused
+        this.messageInput.parentElement.classList.add('ring-2', 'ring-blue-500');
+    }
+    
+    onInputBlur() {
+        // Remove visual feedback when input loses focus
+        this.messageInput.parentElement.classList.remove('ring-2', 'ring-blue-500');
+    }
+    
+    setupHtmxEvents() {
+        // Before request
+        document.body.addEventListener('htmx:beforeRequest', (e) => {
+            if (e.target === this.chatForm) {
+                const messageText = this.messageInput.value.trim();
+                if (messageText) {
+                    this.setLoading(true);
+                    this.addUserMessage(messageText);
+                    this.clearInput();
+                } else {
+                    // Prevent empty message submission
+                    e.preventDefault();
+                    this.messageInput.focus();
+                }
+            }
+        });
+        
+        // After request
+        document.body.addEventListener('htmx:afterRequest', (e) => {
+            if (e.target === this.chatForm) {
+                this.setLoading(false);
+                this.scrollToBottom();
+                
+                // Ensure input is ready for next message
+                setTimeout(() => {
+                    this.messageInput.focus();
+                }, 200);
+            }
+        });
+        
+        // Request error
+        document.body.addEventListener('htmx:responseError', (e) => {
+            if (e.target === this.chatForm) {
+                this.setLoading(false);
+                this.addErrorMessage('メッセージの送信に失敗しました。もう一度お試しください。');
+                
+                // Re-enable input and focus for retry
+                setTimeout(() => {
+                    this.messageInput.focus();
+                }, 500);
+            }
+        });
+        
+        // Network error
+        document.body.addEventListener('htmx:sendError', (e) => {
+            if (e.target === this.chatForm) {
+                this.setLoading(false);
+                this.addErrorMessage('ネットワークエラーが発生しました。接続を確認してください。');
+                
+                // Re-enable input and focus for retry
+                setTimeout(() => {
+                    this.messageInput.focus();
+                }, 500);
+            }
+        });
+    }
+    
+    initializeStreaming() {
+        // Connect to streaming endpoint
+        if (typeof EventSource !== 'undefined') {
+            this.eventSource = new EventSource('/api/streaming/connect');
+            
+            this.eventSource.onopen = () => {
+                console.log('Streaming connection opened');
+                this.connectionStatus.textContent = '接続済み';
+            };
+            
+            this.eventSource.onmessage = (event) => {
+                this.handleStreamingMessage(event.data);
+            };
+            
+            this.eventSource.onerror = (error) => {
+                console.error('Streaming error:', error);
+                this.connectionStatus.textContent = '接続エラー';
+            };
+        }
+    }
+    
+    handleStreamingMessage(data) {
+        try {
+            const message = JSON.parse(data);
+            
+            if (message.type === 'chunk') {
+                this.handleStreamingChunk(message.data);
+            } else if (message.type === 'complete') {
+                this.handleStreamingComplete(message.data);
+            } else if (message.type === 'error') {
+                this.handleStreamingError(message.data);
+            }
+        } catch (error) {
+            console.error('Error parsing streaming message:', error);
+        }
+    }
+    
+    handleStreamingChunk(data) {
+        if (!this.isStreaming) {
+            this.startStreaming();
+        }
+        
+        // Append text chunk
+        this.streamingText.textContent += data.text;
+        this.scrollToBottom();
+    }
+    
+    handleStreamingComplete(data) {
+        if (this.isStreaming) {
+            this.completeStreaming();
+        }
+    }
+    
+    handleStreamingError(data) {
+        if (this.isStreaming) {
+            this.completeStreaming();
+        }
+        this.addErrorMessage(data.error || 'ストリーミング中にエラーが発生しました。');
+    }
+    
+    startStreaming() {
+        this.isStreaming = true;
+        this.streamingResponse.classList.remove('hidden');
+        this.streamingText.textContent = '';
+        this.typingIndicator.style.display = 'inline-block';
+        this.connectionStatus.textContent = 'AI応答中...';
+    }
+    
+    completeStreaming() {
+        this.isStreaming = false;
+        this.typingIndicator.style.display = 'none';
+        
+        // Move streaming content to main chat
+        const finalText = this.streamingText.textContent;
+        if (finalText) {
+            this.addAssistantMessage(finalText);
+        }
+        
+        // Hide streaming container
+        this.streamingResponse.classList.add('hidden');
+        this.connectionStatus.textContent = '準備完了';
+    }
+    
+    handleInput() {
+        this.adjustTextareaHeight();
+    }
+    
+    handleKeyDown(e) {
+        // Enter key: Send message (unless Shift is held for new line)
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            this.submitMessage();
+        }
+        // Ctrl/Cmd + Enter: Force send message even with Shift
+        else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            this.submitMessage();
+        }
+        // Escape key: Clear input and focus
+        else if (e.key === 'Escape') {
+            e.preventDefault();
+            this.clearInput();
+            this.messageInput.focus();
+        }
+        // Ctrl/Cmd + K: Clear chat (future feature)
+        else if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            // TODO: Implement clear chat functionality
+            console.log('Clear chat shortcut pressed');
+        }
+    }
+    
+    submitMessage() {
+        if (!this.sendButton.disabled && this.messageInput.value.trim()) {
+            // Disable input during submission
+            this.setInputDisabled(true);
+            htmx.trigger(this.chatForm, 'submit');
+        }
+    }
+    
+    setInputDisabled(disabled) {
+        this.messageInput.disabled = disabled;
+        this.sendButton.disabled = disabled;
+        
+        if (disabled) {
+            this.messageInput.classList.add('opacity-50', 'cursor-not-allowed');
+        } else {
+            this.messageInput.classList.remove('opacity-50', 'cursor-not-allowed');
+            // Restore focus after enabling
+            setTimeout(() => {
+                this.messageInput.focus();
+            }, 100);
+        }
+    }
+    
+    adjustTextareaHeight() {
+        this.messageInput.style.height = 'auto';
+        this.messageInput.style.height = Math.min(this.messageInput.scrollHeight, 120) + 'px';
+    }
+    
+    updateCharCounter() {
+        const length = this.messageInput.value.length;
+        this.charCounter.textContent = `${length}/1000`;
+        
+        if (length > 900) {
+            this.charCounter.classList.add('text-red-500');
+        } else {
+            this.charCounter.classList.remove('text-red-500');
+        }
+    }
+    
+    addUserMessage(content) {
+        const messageDiv = this.createMessageElement(content, 'user');
+        this.chatMessages.appendChild(messageDiv);
+        this.scrollToBottom();
+    }
+    
+    addAssistantMessage(content) {
+        const messageDiv = this.createMessageElement(content, 'assistant');
+        this.chatMessages.appendChild(messageDiv);
+        this.scrollToBottom();
+    }
+    
+    addErrorMessage(content) {
+        const messageDiv = this.createMessageElement(content, 'error');
+        this.chatMessages.appendChild(messageDiv);
+        this.scrollToBottom();
+    }
+    
+    createMessageElement(content, sender) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'flex items-start space-x-3';
+        
+        const isUser = sender === 'user';
+        const isError = sender === 'error';
+        const timestamp = new Date().toLocaleTimeString('ja-JP', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+        });
+        
+        let bgColor, icon;
+        if (isUser) {
+            bgColor = 'bg-blue-100';
+            icon = '👤';
+        } else if (isError) {
+            bgColor = 'bg-red-100';
+            icon = '⚠️';
+        } else {
+            bgColor = 'bg-gray-100';
+            icon = '🤖';
+        }
+        
+        messageDiv.innerHTML = `
+            <div class="w-8 h-8 ${isUser ? 'bg-gray-400' : isError ? 'bg-red-500' : 'bg-blue-500'} rounded-full flex items-center justify-center flex-shrink-0">
+                <span class="text-white text-sm">${icon}</span>
+            </div>
+            <div class="flex-1">
+                <div class="${bgColor} rounded-lg px-4 py-2">
+                    <p class="text-gray-900">${HealthmateUI.utils.escapeHtml(content)}</p>
+                </div>
+                <p class="text-xs text-gray-500 mt-1">${timestamp}</p>
+            </div>
+        `;
+        
+        return messageDiv;
+    }
+    
+    clearInput() {
+        this.messageInput.value = '';
+        this.updateCharCounter();
+        this.adjustTextareaHeight();
+        
+        // Ensure input is enabled and focused
+        this.setInputDisabled(false);
+        
+        // Focus the input field for next message
+        setTimeout(() => {
+            this.messageInput.focus();
+        }, 50);
+    }
+    
+    setLoading(loading) {
+        this.setInputDisabled(loading);
+        
+        if (loading) {
+            this.connectionStatus.textContent = 'メッセージ送信中...';
+            this.sendText.textContent = '送信中...';
+        } else {
+            this.connectionStatus.textContent = '準備完了';
+            this.sendText.textContent = '送信';
+        }
+    }
+    
+    scrollToBottom() {
+        this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+    }
+    
+    destroy() {
+        if (this.eventSource) {
+            this.eventSource.close();
+        }
+    }
+}
+
+// Initialize chat interface
+let chatInterface;
+document.addEventListener('DOMContentLoaded', () => {
+    chatInterface = new ChatInterface();
+});
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    if (chatInterface) {
+        chatInterface.destroy();
+    }
+});
+
+// Logout handler
+document.getElementById('logout-btn').addEventListener('click', async () => {
+    if (confirm('ログアウトしますか？')) {
+        try {
+            await HealthmateUI.auth.logout();
+        } catch (error) {
+            console.error('Logout error:', error);
+            window.location.href = '/login';
+        }
+    }
+});
+</script>
+{% endblock %}

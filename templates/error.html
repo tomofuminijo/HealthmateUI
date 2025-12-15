@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="min-h-full flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-md w-full space-y-8 text-center">
+        <!-- Error Icon -->
+        <div class="text-6xl">
+            {% if error_code == 404 %}
+                🔍
+            {% elif error_code == 403 %}
+                🚫
+            {% elif error_code == 500 %}
+                ⚠️
+            {% else %}
+                ❌
+            {% endif %}
+        </div>
+
+        <!-- Error Message -->
+        <div>
+            <h2 class="mt-6 text-3xl font-extrabold text-gray-900">
+                {% if error_code == 404 %}
+                    ページが見つかりません
+                {% elif error_code == 403 %}
+                    アクセス権限がありません
+                {% elif error_code == 500 %}
+                    サーバーエラー
+                {% else %}
+                    エラーが発生しました
+                {% endif %}
+            </h2>
+            <p class="mt-2 text-sm text-gray-600">
+                {{ error_message }}
+            </p>
+        </div>
+
+        <!-- Error Code -->
+        <div class="bg-gray-100 rounded-lg p-4">
+            <p class="text-lg font-mono text-gray-700">
+                エラーコード: {{ error_code }}
+            </p>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="space-y-4">
+            <button 
+                onclick="history.back()" 
+                class="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                前のページに戻る
+            </button>
+            
+            <a href="/" 
+               class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                ホームページに戻る
+            </a>
+            
+            {% if error_code in [401, 403] %}
+            <a href="/login" 
+               class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                ログインページに移動
+            </a>
+            {% endif %}
+        </div>
+
+        <!-- Help Information -->
+        <div class="bg-blue-50 rounded-lg p-4 text-left">
+            <h3 class="text-sm font-semibold text-blue-900 mb-2">ヘルプ</h3>
+            <div class="text-xs text-blue-800 space-y-1">
+                {% if error_code == 404 %}
+                <p>• URLが正しいか確認してください</p>
+                <p>• ページが移動または削除された可能性があります</p>
+                {% elif error_code == 403 %}
+                <p>• ログインが必要な場合があります</p>
+                <p>• アクセス権限を確認してください</p>
+                {% elif error_code == 500 %}
+                <p>• 一時的なサーバーエラーの可能性があります</p>
+                <p>• しばらく時間をおいて再試行してください</p>
+                {% endif %}
+                <p>• 問題が続く場合は管理者にお問い合わせください</p>
+            </div>
+        </div>
+
+        <!-- Debug Information (Development Only) -->
+        {% if debug %}
+        <div class="bg-red-50 rounded-lg p-4 text-left">
+            <h3 class="text-sm font-semibold text-red-900 mb-2">デバッグ情報</h3>
+            <div class="text-xs text-red-800 font-mono">
+                <p>Timestamp: {{ timestamp }}</p>
+                <p>Request ID: {{ request_id }}</p>
+                <p>User Agent: {{ user_agent }}</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Auto-refresh for server errors
+{% if error_code >= 500 %}
+let retryCount = 0;
+const maxRetries = 3;
+const retryDelay = 5000; // 5 seconds
+
+function autoRetry() {
+    if (retryCount < maxRetries) {
+        retryCount++;
+        HealthmateUI.utils.showNotification(
+            `自動再試行中... (${retryCount}/${maxRetries})`, 
+            'info'
+        );
+        
+        setTimeout(() => {
+            window.location.reload();
+        }, retryDelay);
+    }
+}
+
+// Start auto-retry after 10 seconds
+setTimeout(autoRetry, 10000);
+{% endif %}
+
+// Report error (optional)
+document.addEventListener('DOMContentLoaded', function() {
+    // Optional: Send error report to analytics
+    if (typeof gtag !== 'undefined') {
+        gtag('event', 'exception', {
+            'description': '{{ error_code }}: {{ error_message }}',
+            'fatal': false
+        });
+    }
+});
+</script>
+{% endblock %}
