@@ -65,27 +65,37 @@ class AgentCorePayload(BaseModel):
     session_state: Optional[Dict[str, Any]] = None
     
     def to_json_payload(self) -> Dict[str, Any]:
-        """Convert to JSON payload for AgentCore CLI"""
+        """Convert to JSON payload for AgentCore CLI (optimized to avoid duplication)"""
+        # Minimal payload structure - only essential information
         payload = {
-            "prompt": self.prompt,
-            "jwt_token": self.jwt_token,
-            "timezone": self.timezone,
-            "language": self.language
+            "prompt": self.prompt
         }
         
-        # Add session ID if provided
-        if self.session_id:
-            payload["sessionId"] = self.session_id
+        # Session state with only required attributes for HealthCoachAI
+        session_attributes = {
+            "session_id": self.session_id,  # Required by HealthCoachAI agent for session continuity
+            "jwt_token": self.jwt_token,    # Required for authentication and user ID extraction
+            "timezone": self.timezone,      # Required for time-aware responses
+            "language": self.language       # Required for language preference
+        }
         
-        if self.session_state:
-            payload["sessionState"] = self.session_state
-        else:
-            payload["sessionState"] = {
-                "sessionAttributes": {
-                    "jwt_token": self.jwt_token,
-                    "timezone": self.timezone,
-                    "language": self.language
-                }
-            }
+        # Filter out attributes that HealthCoachAI doesn't need
+        excluded_attributes = {
+            "user_id",          # Extracted from JWT token by HealthCoachAI
+            "auth_session_id",  # Not used by HealthCoachAI
+            "chat_session_id"   # Redundant with session_id
+        }
+        
+        # Add any additional session attributes from existing session state (filtered)
+        if self.session_state and "sessionAttributes" in self.session_state:
+            additional_attrs = self.session_state["sessionAttributes"]
+            for key, value in additional_attrs.items():
+                # Only add attributes that are not already included and not excluded
+                if key not in session_attributes and key not in excluded_attributes:
+                    session_attributes[key] = value
+        
+        payload["sessionState"] = {
+            "sessionAttributes": session_attributes
+        }
         
         return payload

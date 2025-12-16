@@ -60,18 +60,7 @@ class HealthCoachClient:
             else:
                 logger.debug(f"No session ID found in session_attributes: {session_attributes}")
             
-            # Create payload with proper session attributes structure
-            session_attrs = session_attributes or {}
-            session_attrs.update({
-                "jwt_token": jwt_token,
-                "timezone": timezone,
-                "language": language
-            })
-            
-            # Ensure session_id is in session attributes for HealthCoachAI agent
-            if session_id:
-                session_attrs["session_id"] = session_id
-            
+            # Create optimized payload (avoid duplication - AgentCorePayload.to_json_payload() handles the structure)
             payload = AgentCorePayload(
                 prompt=message,
                 jwt_token=jwt_token,
@@ -79,7 +68,7 @@ class HealthCoachClient:
                 language=language,
                 session_id=session_id,
                 session_state={
-                    "sessionAttributes": session_attrs
+                    "sessionAttributes": session_attributes or {}
                 }
             )
             
@@ -142,18 +131,7 @@ class HealthCoachClient:
             else:
                 logger.debug(f"No session ID found in session_attributes: {session_attributes}")
             
-            # Create payload with proper session attributes structure
-            session_attrs = session_attributes or {}
-            session_attrs.update({
-                "jwt_token": jwt_token,
-                "timezone": timezone,
-                "language": language
-            })
-            
-            # Ensure session_id is in session attributes for HealthCoachAI agent
-            if session_id:
-                session_attrs["session_id"] = session_id
-            
+            # Create optimized payload (avoid duplication - AgentCorePayload.to_json_payload() handles the structure)
             payload = AgentCorePayload(
                 prompt=message,
                 jwt_token=jwt_token,
@@ -161,7 +139,7 @@ class HealthCoachClient:
                 language=language,
                 session_id=session_id,
                 session_state={
-                    "sessionAttributes": session_attrs
+                    "sessionAttributes": session_attributes or {}
                 }
             )
             
