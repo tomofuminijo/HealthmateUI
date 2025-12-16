@@ -163,15 +163,24 @@ async def start_streaming_chat(
                 ai_message_content = ""
                 
                 try:
+                    # Use chat_session_id from request, fallback to session_attributes
+                    chat_session_id = request.chat_session_id
+                    if not chat_session_id and request.session_attributes:
+                        chat_session_id = request.session_attributes.get("session_id")
+                    
+                    logger.info(f"Processing message for user {user_session.user_info.user_id}, chat_session_id: {chat_session_id}, auth_session: {user_session.auth_session_id}")
+                    
                     # Add user message to history
                     user_message = chat_service.add_message(
                         user_id=user_session.user_info.user_id,
                         content=request.message,
                         role="user",
+                        session_id=chat_session_id,  # This is the chat session ID
                         metadata={
                             "timezone": request.timezone,
                             "language": request.language,
-                            "connection_id": connection.connection_id
+                            "connection_id": connection.connection_id,
+                            "auth_session_id": user_session.auth_session_id  # Store auth session for reference
                         }
                     )
                     
@@ -193,13 +202,30 @@ async def start_streaming_chat(
                     )
                     yield thinking_event.to_sse_format()
                     
+                    # Prepare session attributes for HealthCoachAI
+                    # HealthCoachAI expects session_id in sessionState.sessionAttributes.session_id
+                    session_attributes = {
+                        "session_id": chat_session_id,  # HealthCoachAI expects this key
+                        "chat_session_id": chat_session_id,  # Keep for compatibility
+                        "user_id": user_session.user_info.user_id,
+                        "auth_session_id": user_session.auth_session_id,
+                        "timezone": request.timezone,
+                        "language": request.language
+                    }
+                    
+                    # Add any additional session attributes from request
+                    if request.session_attributes:
+                        session_attributes.update(request.session_attributes)
+                    
+                    logger.info(f"Sending to HealthCoachAI with session_attributes: {session_attributes}")
+                    
                     # Stream response from HealthCoachAI
                     async for chunk in healthcoach_client.send_message_streaming(
                         message=request.message,
                         jwt_token=user_session.tokens.access_token,
                         timezone=request.timezone,
                         language=request.language,
-                        session_attributes=request.session_attributes
+                        session_attributes=session_attributes
                     ):
                         if chunk.error:
                             # Send error event

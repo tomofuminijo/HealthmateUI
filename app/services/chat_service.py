@@ -85,8 +85,27 @@ class ChatService:
             if session and session.user_id == user_id:
                 session.update_activity()
                 return session
+            
+            # If session_id is provided but doesn't exist, create it with that ID
+            if session_id not in self._chat_sessions:
+                session = ChatSession(
+                    session_id=session_id,
+                    user_id=user_id
+                )
+                
+                self._chat_sessions[session_id] = session
+                
+                # Initialize chat history for this session
+                history = ChatHistory(
+                    user_id=user_id,
+                    session_id=session_id
+                )
+                self._chat_histories[f"{user_id}:{session_id}"] = history
+                
+                logger.info(f"Created chat session {session_id} for user {user_id}")
+                return session
         
-        # Create new session
+        # Create new session with auto-generated ID
         return self.create_session(user_id)
     
     def add_message(

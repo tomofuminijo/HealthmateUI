@@ -79,8 +79,6 @@
         <div 
             id="chat-messages" 
             class="h-full overflow-y-auto px-4 sm:px-6 py-4 space-y-4"
-            hx-get="/api/chat/history"
-            hx-trigger="load"
             hx-swap="innerHTML">
             <!-- Loading indicator -->
             <div class="flex items-center justify-center py-8">
@@ -159,6 +157,8 @@
 // Chat functionality with htmx integration
 class ChatInterface {
     constructor() {
+        console.log('=== ChatInterface constructor called ===');
+        
         this.messageInput = document.getElementById('message-input');
         this.chatForm = document.getElementById('chat-form');
         this.chatMessages = document.getElementById('chat-messages');
@@ -176,14 +176,22 @@ class ChatInterface {
         this.eventSource = null;
         this.isStreaming = false;
         this.isComposing = false; // IME composition state
+        this.isNewSessionJustCreated = false; // Flag for new session display
         
+        console.log('=== Initializing session ===');
         // Initialize session
         this.sessionId = this.getOrCreateSessionId();
+        console.log('=== Session initialized, calling init() ===');
         
         this.init();
     }
     
     init() {
+        console.log('=== ChatInterface init called ===');
+        
+        // Check authentication status first
+        this.checkAuthenticationStatus();
+        
         // Auto-resize textarea
         this.messageInput.addEventListener('input', () => this.handleInput());
         
@@ -218,11 +226,11 @@ class ChatInterface {
             this.startNewChatSession();
         });
         
-        // htmx event listeners
-        this.setupHtmxEvents();
-        
-        // Auto-scroll functionality
-        this.setupAutoScroll();
+        // Chat form submission
+        this.chatForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleFormSubmit();
+        });
         
         // Connection status is hidden by default - only shown on errors
         
@@ -237,8 +245,27 @@ class ChatInterface {
         // Initial send button state
         this.updateSendButtonState();
         
-        // Initialize scroll position management
-        this.initializeScrollManagement();
+        // Update history loading URL with current session ID
+        this.updateHistoryLoadingUrl();
+        
+        // Load initial chat history (delay to ensure htmx is ready)
+        setTimeout(() => {
+            this.loadInitialHistory();
+        }, 500);
+    }
+    
+    checkAuthenticationStatus() {
+        console.log('=== Checking authentication status ===');
+        console.log('Current cookies:', document.cookie);
+        
+        // Check if we have authentication cookies
+        const hasAuthCookie = document.cookie.includes('healthmate_session');
+        console.log('Has auth cookie:', hasAuthCookie);
+        
+        if (!hasAuthCookie) {
+            console.warn('No authentication cookie found - user may not be logged in');
+            // Don't redirect immediately, let the API call handle it
+        }
     }
     
     updateSendButtonState() {
@@ -591,19 +618,7 @@ class ChatInterface {
     
     submitMessage() {
         if (!this.sendButton.disabled && this.messageInput.value.trim()) {
-            const messageText = this.messageInput.value.trim();
-            
-            // Disable input during submission
-            this.setInputDisabled(true);
-            
-            // Add user message to chat
-            this.addUserMessage(messageText);
-            
-            // Clear input field and maintain focus (要件 2.4)
-            this.clearInputAndMaintainFocus();
-            
-            // Start streaming response
-            this.startStreamingResponse(messageText);
+            this.handleFormSubmit();
         }
     }
     
@@ -712,6 +727,209 @@ class ChatInterface {
         this.scrollToBottom();
     }
     
+    addUserMessage(content) {
+        const messageDiv = this.createMessageElement(content, 'user');
+        this.chatMessages.appendChild(messageDiv);
+        this.scrollToBottom();
+    }
+    
+    startStreaming() {
+        console.log('startStreaming called');
+        this.isStreaming = true;
+        
+        // Create streaming response element in the chat messages area
+        this.streamingResponse = document.createElement('div');
+        this.streamingResponse.className = 'flex items-start space-x-3';
+        this.streamingResponse.innerHTML = `
+            <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                <span class="text-white text-sm">🤖</span>
+            </div>
+            <div class="flex-1">
+                <div class="bg-gray-100 rounded-lg px-4 py-2">
+                    <div id="thinking-indicator" class="flex items-center space-x-2 text-gray-600">
+                        <span class="text-sm">🤔</span>
+                        <span class="text-sm">考え中</span>
+                        <div class="flex space-x-1">
+                            <div class="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0ms;"></div>
+                            <div class="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 150ms;"></div>
+                            <div class="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 300ms;"></div>
+                        </div>
+                    </div>
+                    <p id="streaming-text" class="text-gray-900 whitespace-pre-wrap hidden"></p>
+                    <div id="typing-indicator" class="inline-block w-2 h-4 bg-blue-500 animate-pulse hidden"></div>
+                </div>
+            </div>
+        `;
+        
+        // Add to chat messages area
+        this.chatMessages.appendChild(this.streamingResponse);
+        
+        // Get references to the created elements
+        this.streamingText = document.getElementById('streaming-text');
+        this.typingIndicator = document.getElementById('typing-indicator');
+        this.thinkingIndicator = document.getElementById('thinking-indicator');
+        
+        this.scrollToBottom();
+        
+        console.log('Streaming response created in chat area with thinking indicator');
+        console.log('Streaming text element:', this.streamingText);
+    }
+    
+    completeStreaming() {
+        this.isStreaming = false;
+        
+        if (this.typingIndicator) {
+            this.typingIndicator.style.display = 'none';
+        }
+        
+        // Convert streaming response to permanent message
+        const finalText = this.streamingText ? this.streamingText.textContent : '';
+        if (finalText && this.streamingResponse) {
+            // Replace streaming response with permanent message
+            const permanentMessage = this.createMessageElement(finalText, 'assistant');
+            this.chatMessages.replaceChild(permanentMessage, this.streamingResponse);
+        }
+        
+        // Clean up references
+        this.streamingResponse = null;
+        this.streamingText = null;
+        this.typingIndicator = null;
+        this.thinkingIndicator = null;
+        
+        // Connection is working normally - no status display needed
+        
+        // Re-enable input
+        this.setInputDisabled(false);
+        
+        this.scrollToBottom();
+    }
+    
+    handleStreamingEvent(eventData) {
+        console.log('Streaming event:', eventData);
+        
+        switch (eventData.event_type) {
+            case 'connected':
+                console.log('Streaming connected');
+                break;
+                
+            case 'user_message':
+                console.log('User message confirmed');
+                break;
+                
+            case 'ai_thinking':
+                // AI is thinking - no status display needed
+                break;
+                
+            case 'ai_chunk':
+                if (eventData.text) {
+                    console.log('Adding text chunk:', eventData.text);
+                    
+                    // Ensure streaming is started
+                    if (!this.isStreaming) {
+                        console.log('Starting streaming because isStreaming is false');
+                        this.startStreaming();
+                    }
+                    
+                    // Hide thinking indicator and show streaming text on first chunk
+                    if (this.thinkingIndicator && !this.thinkingIndicator.classList.contains('hidden')) {
+                        this.thinkingIndicator.classList.add('hidden');
+                        this.streamingText.classList.remove('hidden');
+                        this.typingIndicator.classList.remove('hidden');
+                        console.log('Switched from thinking to streaming display');
+                    }
+                    
+                    this.streamingText.textContent += eventData.text;
+                    console.log('Current streaming text:', this.streamingText.textContent);
+                    this.scrollToBottom();
+                }
+                break;
+                
+            case 'ai_message_complete':
+                console.log('AI message complete');
+                break;
+                
+            case 'complete':
+                this.completeStreaming();
+                break;
+                
+            case 'error':
+                console.error('Streaming error:', eventData.error);
+                this.addErrorMessage(`エラー: ${eventData.error}`);
+                this.completeStreaming();
+                break;
+                
+            case 'disconnected':
+                console.log('Streaming disconnected');
+                break;
+                
+            default:
+                console.log('Unknown streaming event:', eventData);
+        }
+    }
+    
+    handleStreamingEvent(eventData) {
+        console.log('Streaming event:', eventData);
+        
+        switch (eventData.event_type) {
+            case 'connected':
+                console.log('Streaming connected');
+                break;
+                
+            case 'user_message':
+                console.log('User message confirmed');
+                break;
+                
+            case 'ai_thinking':
+                // AI is thinking - no status display needed
+                break;
+                
+            case 'ai_chunk':
+                if (eventData.text) {
+                    console.log('Adding text chunk:', eventData.text);
+                    
+                    // Ensure streaming is started
+                    if (!this.isStreaming) {
+                        console.log('Starting streaming because isStreaming is false');
+                        this.startStreaming();
+                    }
+                    
+                    // Hide thinking indicator and show streaming text on first chunk
+                    if (this.thinkingIndicator && !this.thinkingIndicator.classList.contains('hidden')) {
+                        this.thinkingIndicator.classList.add('hidden');
+                        this.streamingText.classList.remove('hidden');
+                        this.typingIndicator.classList.remove('hidden');
+                        console.log('Switched from thinking to streaming display');
+                    }
+                    
+                    this.streamingText.textContent += eventData.text;
+                    console.log('Current streaming text:', this.streamingText.textContent);
+                    this.scrollToBottom();
+                }
+                break;
+                
+            case 'ai_message_complete':
+                console.log('AI message complete');
+                break;
+                
+            case 'complete':
+                this.completeStreaming();
+                break;
+                
+            case 'error':
+                console.error('Streaming error:', eventData.error);
+                this.addErrorMessage(`エラー: ${eventData.error}`);
+                this.completeStreaming();
+                break;
+                
+            case 'disconnected':
+                console.log('Streaming disconnected');
+                break;
+                
+            default:
+                console.log('Unknown streaming event:', eventData);
+        }
+    }
+    
     createMessageElement(content, sender) {
         const messageDiv = document.createElement('div');
         messageDiv.className = 'flex items-start space-x-3';
@@ -735,13 +953,16 @@ class ChatInterface {
             icon = '🤖';
         }
         
+        // Escape HTML and convert newlines to <br> tags (consistent with chat_history.html)
+        const escapedContent = HealthmateUI.utils.escapeHtml(content).replace(/\n/g, '<br>');
+        
         messageDiv.innerHTML = `
             <div class="w-8 h-8 ${isUser ? 'bg-gray-400' : isError ? 'bg-red-500' : 'bg-blue-500'} rounded-full flex items-center justify-center flex-shrink-0">
                 <span class="text-white text-sm">${icon}</span>
             </div>
             <div class="flex-1">
                 <div class="${bgColor} rounded-lg px-4 py-2">
-                    <p class="text-gray-900 whitespace-pre-wrap">${HealthmateUI.utils.escapeHtml(content)}</p>
+                    <p class="text-gray-900 leading-relaxed">${escapedContent}</p>
                 </div>
                 <p class="text-xs text-gray-500 mt-1">${timestamp}</p>
             </div>
@@ -799,8 +1020,11 @@ class ChatInterface {
     }
 
     getOrCreateSessionId() {
+        console.log('=== getOrCreateSessionId called ===');
+        
         // Check if we already have a session ID in sessionStorage
         let sessionId = sessionStorage.getItem('healthmate_chat_session_id');
+        console.log('Existing session ID from storage:', sessionId);
         
         if (!sessionId) {
             // Generate a new session ID (must be at least 33 characters)
@@ -820,12 +1044,17 @@ class ChatInterface {
             console.log('Using existing chat session ID:', sessionId, `(${sessionId.length} chars)`);
         }
         
+        // Debug: Check cookies
+        console.log('Current document.cookie:', document.cookie);
+        
         return sessionId;
     }
     
     resetChatSession() {
         // Clear the session ID to start a new conversation
         sessionStorage.removeItem('healthmate_chat_session_id');
+        
+        // Don't set persistent flag - let the session naturally be empty
         console.log('Chat session reset - new conversation will start');
     }
     
@@ -839,14 +1068,182 @@ class ChatInterface {
             this.resetChatSession();
             this.sessionId = this.getOrCreateSessionId();
             
-            // Add welcome message for new session
-            setTimeout(() => {
-                this.chatMessages.innerHTML = '';
-                this.addAssistantMessage('新しいチャットセッションが開始されました！\n\n私はあなたの健康コーチAIです。過去の会話内容を覚えているので、継続的なサポートを提供できます。何かお手伝いできることはありますか？');
-            }, 1000);
+            // Update the htmx history loading URL to use the new session ID
+            this.updateHistoryLoadingUrl();
+            
+            // Clear the chat messages and show welcome message immediately
+            this.chatMessages.innerHTML = '';
+            this.addAssistantMessage('新しいチャットセッションが開始されました！\n\n私はあなたの健康コーチAIです。過去の会話内容を覚えているので、継続的なサポートを提供できます。何かお手伝いできることはありますか？');
+            
+            // Set a flag to indicate this is a truly new session (only for immediate display)
+            // This flag should NOT persist across page refreshes
+            this.isNewSessionJustCreated = true;
             
             console.log('New chat session started with session ID:', this.sessionId);
         }
+    }
+    
+    updateHistoryLoadingUrl() {
+        // Update the htmx history loading URL to include current session ID
+        const historyUrl = `/api/chat/history?session_id=${encodeURIComponent(this.sessionId)}`;
+        this.chatMessages.setAttribute('hx-get', historyUrl);
+        console.log('Updated history loading URL:', historyUrl);
+        console.log('Current session ID:', this.sessionId);
+    }
+    
+    loadChatHistory() {
+        // Load chat history for current session
+        if (typeof htmx !== 'undefined') {
+            htmx.trigger(this.chatMessages, 'loadHistory');
+        }
+    }
+    
+    loadInitialHistory() {
+        console.log('=== loadInitialHistory called ===');
+        
+        // Skip loading if this is a new session that was just created in this page load
+        if (this.isNewSessionJustCreated) {
+            console.log('New session just created - skipping history load');
+            return;
+        }
+        
+        // Load initial chat history using fetch with session ID
+        console.log('Loading initial history for session:', this.sessionId);
+        
+        const historyUrl = `/api/chat/history?session_id=${encodeURIComponent(this.sessionId)}`;
+        console.log('Loading history from URL:', historyUrl);
+        
+        // Show loading indicator
+        this.chatMessages.innerHTML = '<div class="flex items-center justify-center py-8"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div><span class="ml-2 text-gray-500">チャット履歴を読み込み中...</span></div>';
+        
+        console.log('Making fetch request with credentials...');
+        
+        // Use fetch to ensure cookies are included
+        fetch(historyUrl, {
+            method: 'GET',
+            credentials: 'include',  // Include cookies
+            headers: {
+                'HX-Request': 'true',
+                'Accept': 'text/html'
+            }
+        }).then(async (response) => {
+            console.log('Fetch response received:', response.status, response.statusText);
+            console.log('Response headers:', [...response.headers.entries()]);
+            
+            if (response.ok) {
+                const html = await response.text();
+                console.log('Response HTML length:', html.length);
+                console.log('Response HTML preview:', html.substring(0, 200));
+                
+                this.chatMessages.innerHTML = html;
+                console.log('Initial chat history loaded successfully');
+                this.scrollToBottom();
+            } else if (response.status === 401) {
+                console.error('Authentication failed - user not logged in or session expired');
+                console.log('Current page URL:', window.location.href);
+                console.log('Cookies at time of error:', document.cookie);
+                
+                // Show authentication error message instead of immediate redirect
+                this.chatMessages.innerHTML = `
+                    <div class="flex items-center justify-center py-8">
+                        <div class="text-center">
+                            <div class="text-red-500 mb-4">
+                                <svg class="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 15.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                                </svg>
+                                <h3 class="text-lg font-medium">認証が必要です</h3>
+                            </div>
+                            <p class="text-gray-600 mb-4">チャット履歴を表示するにはログインが必要です。</p>
+                            <button onclick="window.location.href='/login'" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg">
+                                ログインページへ
+                            </button>
+                        </div>
+                    </div>
+                `;
+            } else {
+                const errorText = await response.text();
+                console.error('HTTP error response:', errorText);
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+        }).catch((error) => {
+            console.error('Failed to load initial chat history:', error);
+            console.error('Error details:', error.message, error.stack);
+            
+            // Show welcome message if no history or error
+            console.log('Showing welcome message due to error');
+            this.showWelcomeMessage();
+        });
+    }
+    
+    showWelcomeMessage() {
+        // Clear messages and show welcome message directly
+        console.log('Showing welcome message for session:', this.sessionId);
+        
+        this.chatMessages.innerHTML = '';
+        
+        // Try to load empty history from server first, fallback to client-side message
+        const emptyHistoryUrl = `/api/chat/history?session_id=${encodeURIComponent(this.sessionId)}`;
+        console.log('Attempting to load empty history from server...');
+        
+        fetch(emptyHistoryUrl, {
+            method: 'GET',
+            credentials: 'include',  // Include cookies
+            headers: {
+                'HX-Request': 'true',
+                'Accept': 'text/html'
+            }
+        }).then(async (response) => {
+            if (response.ok) {
+                const html = await response.text();
+                this.chatMessages.innerHTML = html;
+                console.log('Empty history loaded from server');
+                this.scrollToBottom();
+            } else if (response.status === 401) {
+                console.log('Authentication error, redirecting to login');
+                window.location.href = '/login';
+            } else {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+        }).catch((error) => {
+            console.error('Failed to load empty history from server:', error);
+            // Fallback to client-side welcome message
+            this.showClientWelcomeMessage();
+        });
+    }
+    
+    showClientWelcomeMessage() {
+        // Show welcome message directly in the client
+        console.log('Showing client-side welcome message');
+        
+        this.chatMessages.innerHTML = `
+            <div class="flex items-start space-x-3 mb-4 animate-fade-in">
+                <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <span class="text-white text-sm">🤖</span>
+                </div>
+                <div class="flex-1 max-w-3xl">
+                    <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg px-4 py-3 shadow-sm">
+                        <div class="text-gray-900 leading-relaxed">
+                            <p class="font-medium text-blue-900 mb-2">こんにちは！HealthCoach AIです 👋</p>
+                            <p class="text-gray-700">
+                                あなたの健康目標達成をサポートします。<br>
+                                何かご質問やご相談はありますか？
+                            </p>
+                            <div class="mt-3 text-sm text-gray-600">
+                                <p>💡 例えば：</p>
+                                <ul class="list-disc list-inside mt-1 space-y-1 text-xs">
+                                    <li>「健康的な食事のアドバイスをください」</li>
+                                    <li>「運動習慣を始めたいです」</li>
+                                    <li>「睡眠の質を改善したいです」</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">今</p>
+                </div>
+            </div>
+        `;
+        
+        this.scrollToBottom();
     }
     
     clearChat() {
@@ -858,7 +1255,135 @@ class ChatInterface {
             this.resetChatSession();
             this.sessionId = this.getOrCreateSessionId();
             
+            // Update the htmx history loading URL to use the new session ID
+            this.updateHistoryLoadingUrl();
+            
             console.log('Chat cleared and new session started');
+        }
+    }
+    
+    async handleFormSubmit() {
+        const messageText = this.messageInput.value.trim();
+        if (!messageText) {
+            return;
+        }
+        
+        console.log('=== Form submit - sending message with session ID ===');
+        console.log('Message:', messageText);
+        console.log('Session ID:', this.sessionId);
+        
+        // Disable input during submission
+        this.setInputDisabled(true);
+        
+        // Add user message to chat display
+        this.addUserMessage(messageText);
+        
+        // Clear input field and maintain focus
+        this.clearInputAndMaintainFocus();
+        
+        try {
+            // Send message to streaming API with session ID
+            const response = await fetch('/api/streaming/chat', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'text/event-stream'
+                },
+                body: JSON.stringify({
+                    message: messageText,
+                    timezone: 'Asia/Tokyo',
+                    language: 'ja',
+                    chat_session_id: this.sessionId  // Use explicit chat_session_id field
+                })
+            });
+            
+            console.log('Streaming response status:', response.status);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            // Process Server-Sent Events
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            
+            // Start streaming display
+            this.startStreaming();
+            
+            while (true) {
+                const { done, value } = await reader.read();
+                
+                if (done) {
+                    console.log('Streaming completed');
+                    break;
+                }
+                
+                // Add to buffer
+                const chunk = decoder.decode(value, { stream: true });
+                buffer += chunk;
+                
+                // Process complete lines
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || ''; // Keep incomplete line in buffer
+                
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const eventData = JSON.parse(line.slice(6));
+                            this.handleStreamingEvent(eventData);
+                        } catch (e) {
+                            console.error('Error parsing SSE data:', e, 'Line:', line);
+                        }
+                    }
+                }
+            }
+            
+        } catch (error) {
+            console.error('Message sending error:', error);
+            this.addErrorMessage(`メッセージ送信エラー: ${error.message}`);
+        } finally {
+            // Re-enable input
+            this.setInputDisabled(false);
+            
+            if (this.isStreaming) {
+                this.completeStreaming();
+            }
+        }
+    }
+    
+    setInputDisabled(disabled) {
+        this.messageInput.disabled = disabled;
+        this.sendButton.disabled = disabled;
+        
+        if (disabled) {
+            this.messageInput.classList.add('opacity-50', 'cursor-not-allowed');
+            this.sendButton.classList.add('opacity-50', 'cursor-not-allowed');
+        } else {
+            this.messageInput.classList.remove('opacity-50', 'cursor-not-allowed');
+            this.sendButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            // Restore focus after enabling
+            setTimeout(() => {
+                this.messageInput.focus();
+            }, 100);
+        }
+    }
+    
+    setInputDisabled(disabled) {
+        this.messageInput.disabled = disabled;
+        this.sendButton.disabled = disabled;
+        
+        if (disabled) {
+            this.messageInput.classList.add('opacity-50', 'cursor-not-allowed');
+            this.sendButton.classList.add('opacity-50', 'cursor-not-allowed');
+        } else {
+            this.messageInput.classList.remove('opacity-50', 'cursor-not-allowed');
+            this.sendButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            // Restore focus after enabling
+            setTimeout(() => {
+                this.messageInput.focus();
+            }, 100);
         }
     }
     
@@ -872,7 +1397,13 @@ class ChatInterface {
 // Initialize chat interface
 let chatInterface;
 document.addEventListener('DOMContentLoaded', () => {
-    chatInterface = new ChatInterface();
+    console.log('=== DOMContentLoaded event fired ===');
+    try {
+        chatInterface = new ChatInterface();
+        console.log('=== ChatInterface created successfully ===');
+    } catch (error) {
+        console.error('=== Error creating ChatInterface ===', error);
+    }
 });
 
 // Cleanup on page unload

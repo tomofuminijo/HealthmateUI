@@ -354,7 +354,7 @@ async def get_chat_history(
     request: Request,
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
-    session_id: Optional[str] = Query(default=None),
+    chat_session_id: Optional[str] = Query(default=None, alias="session_id"),
     user_session: UserSession = Depends(require_authentication)
 ):
     """
@@ -371,7 +371,7 @@ async def get_chat_history(
         HTML response for htmx or JSON for API clients
     """
     try:
-        logger.info(f"Getting chat history for user {user_session.user_info.user_id}")
+        logger.info(f"Getting chat history for user {user_session.user_info.user_id}, chat_session_id: {chat_session_id}, auth_session: {user_session.auth_session_id}")
         
         # Check if this is an htmx request
         is_htmx = request.headers.get("HX-Request") == "true"
@@ -381,7 +381,7 @@ async def get_chat_history(
         # Get messages
         messages = chat_service.get_chat_history(
             user_id=user_session.user_info.user_id,
-            session_id=session_id,
+            session_id=chat_session_id,  # This is the chat session ID
             limit=limit + 1,  # Get one extra to check if there are more
             offset=offset
         )
@@ -394,10 +394,10 @@ async def get_chat_history(
         # Get total count
         total_count = chat_service.get_message_count(
             user_id=user_session.user_info.user_id,
-            session_id=session_id
+            session_id=chat_session_id
         )
         
-        logger.info(f"Retrieved {len(messages)} messages for user {user_session.user_info.user_id}")
+        logger.info(f"Retrieved {len(messages)} messages for user {user_session.user_info.user_id}, chat_session_id: {chat_session_id}")
         
         if is_htmx:
             # Return HTML for htmx
@@ -405,7 +405,9 @@ async def get_chat_history(
                 "chat_history.html",
                 {
                     "request": request,
-                    "messages": messages
+                    "messages": messages,
+                    "has_more": has_more,
+                    "total_count": total_count
                 }
             )
         else:
@@ -509,4 +511,53 @@ async def get_chat_sessions(
         raise HTTPException(
             status_code=500,
             detail=f"Internal server error: {str(e)}"
+        )
+
+
+@router.get("/debug/messages")
+async def debug_messages(
+    user_session: UserSession = Depends(require_authentication)
+):
+    """
+    Debug endpoint to inspect raw message content
+    
+    Args:
+        user_session: Authenticated user session
+        
+    Returns:
+        Raw message data for debugging
+    """
+    try:
+        chat_service = get_chat_service()
+        
+        # Get recent messages
+        messages = chat_service.get_chat_history(
+            user_id=user_session.user_info.user_id,
+            limit=10
+        )
+        
+        # Return raw message data for debugging
+        debug_data = []
+        for msg in messages:
+            debug_data.append({
+                "id": msg.id,
+                "role": msg.role,
+                "content_raw": repr(msg.content),  # Show raw string representation
+                "content_length": len(msg.content),
+                "has_newlines": '\n' in msg.content,
+                "newline_count": msg.content.count('\n'),
+                "timestamp": msg.timestamp.isoformat()
+            })
+        
+        return {
+            "success": True,
+            "debug_messages": debug_data,
+            "total_count": len(debug_data)
+        }
+        
+    except Exception as e:
+        logger.error(f"Debug messages error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Debug error: {str(e)}"
         )

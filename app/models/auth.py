@@ -41,6 +41,7 @@ class UserSession(BaseModel):
     """User session data"""
     user_info: UserInfo = Field(..., description="User information")
     tokens: CognitoTokens = Field(..., description="Authentication tokens")
+    auth_session_id: Optional[str] = Field(None, description="Authentication session ID")
     created_at: datetime = Field(default_factory=datetime.utcnow, description="Session creation time")
     last_accessed: datetime = Field(default_factory=datetime.utcnow, description="Last access time")
     

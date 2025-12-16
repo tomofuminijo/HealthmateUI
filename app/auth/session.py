@@ -51,7 +51,8 @@ class SessionManager:
             # Create session
             session = UserSession(
                 user_info=user_info,
-                tokens=tokens
+                tokens=tokens,
+                auth_session_id=session_id
             )
             
             # Store session
@@ -310,6 +311,19 @@ async def require_authentication(request: Request) -> UserSession:
     Raises:
         HTTPException: If not authenticated
     """
+    # Check for development mode first
+    from ..utils.config import get_config
+    config = get_config()
+    
+    if config.DEBUG:
+        # Try development authentication
+        from .dev_auth import get_dev_auth_manager
+        dev_auth = get_dev_auth_manager()
+        dev_session = dev_auth.get_test_session_from_request(request)
+        if dev_session:
+            logger.info(f"Using development authentication for user: {dev_session.user_info.user_id}")
+            return dev_session
+    
     session_manager = get_session_manager()
     session = session_manager.get_session_from_request(request)
     

@@ -60,7 +60,18 @@ class HealthCoachClient:
             else:
                 logger.error(f"No session ID found in session_attributes: {session_attributes}")  # Debug info
             
-            # Create payload
+            # Create payload with proper session attributes structure
+            session_attrs = session_attributes or {}
+            session_attrs.update({
+                "jwt_token": jwt_token,
+                "timezone": timezone,
+                "language": language
+            })
+            
+            # Ensure session_id is in session attributes for HealthCoachAI agent
+            if session_id:
+                session_attrs["session_id"] = session_id
+            
             payload = AgentCorePayload(
                 prompt=message,
                 jwt_token=jwt_token,
@@ -68,11 +79,7 @@ class HealthCoachClient:
                 language=language,
                 session_id=session_id,
                 session_state={
-                    "sessionAttributes": session_attributes or {
-                        "jwt_token": jwt_token,
-                        "timezone": timezone,
-                        "language": language
-                    }
+                    "sessionAttributes": session_attrs
                 }
             )
             
@@ -135,7 +142,18 @@ class HealthCoachClient:
             else:
                 logger.error(f"No session ID found in session_attributes: {session_attributes}")  # Debug info
             
-            # Create payload
+            # Create payload with proper session attributes structure
+            session_attrs = session_attributes or {}
+            session_attrs.update({
+                "jwt_token": jwt_token,
+                "timezone": timezone,
+                "language": language
+            })
+            
+            # Ensure session_id is in session attributes for HealthCoachAI agent
+            if session_id:
+                session_attrs["session_id"] = session_id
+            
             payload = AgentCorePayload(
                 prompt=message,
                 jwt_token=jwt_token,
@@ -143,11 +161,7 @@ class HealthCoachClient:
                 language=language,
                 session_id=session_id,
                 session_state={
-                    "sessionAttributes": session_attributes or {
-                        "jwt_token": jwt_token,
-                        "timezone": timezone,
-                        "language": language
-                    }
+                    "sessionAttributes": session_attrs
                 }
             )
             

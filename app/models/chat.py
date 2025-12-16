@@ -44,8 +44,11 @@ class ChatMessage(BaseModel):
         # HTML escape to prevent XSS
         sanitized = html.escape(v.strip())
         
-        # Remove excessive whitespace
-        sanitized = re.sub(r'\s+', ' ', sanitized)
+        # Remove excessive whitespace but preserve newlines
+        # Replace multiple spaces/tabs with single space, but keep newlines
+        sanitized = re.sub(r'[ \t]+', ' ', sanitized)  # Only spaces and tabs
+        sanitized = re.sub(r'\n[ \t]+', '\n', sanitized)  # Remove leading spaces after newlines
+        sanitized = re.sub(r'[ \t]+\n', '\n', sanitized)  # Remove trailing spaces before newlines
         
         return sanitized
     
@@ -148,6 +151,7 @@ class StreamingMessageRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=4000)
     timezone: str = Field(default="Asia/Tokyo")
     language: str = Field(default="ja")
+    chat_session_id: Optional[str] = Field(None, description="Chat conversation session ID")
     session_attributes: Optional[Dict[str, Any]] = None
     
     @validator('message')
