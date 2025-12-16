@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-End-to-End HealthCoachAI Integration Test
-Complete test: Test Program -> FastAPI -> HealthCoachAI
+End-to-End Healthmate-CoachAI Integration Test
+Complete test: Test Program -> FastAPI -> Healthmate-CoachAI
 
 This test starts a FastAPI server, creates a demo user session,
 and tests the full integration through FastAPI endpoints.
@@ -47,7 +47,7 @@ def load_configuration():
     try:
         region = os.getenv("AWS_REGION", "us-west-2")
         cf_client = boto3.client('cloudformation', region_name=region)
-        stack_name = os.getenv("HEALTH_STACK_NAME", "HealthManagerMCPStack")
+        stack_name = os.getenv("HEALTH_STACK_NAME", "Healthmate-HealthManagerStack")
         
         print(f"   📋 Checking CloudFormation stack: {stack_name}")
         

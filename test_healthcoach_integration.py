@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-HealthCoachAI Integration Test
-Test actual integration with deployed HealthCoachAI service
+Healthmate-CoachAI Integration Test
+Test actual integration with deployed Healthmate-CoachAI service
 """
 import asyncio
 import sys
