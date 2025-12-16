@@ -44,18 +44,7 @@
                 <div class="flex items-center space-x-2">
                     <!-- Timestamp with enhanced formatting -->
                     <p class="text-xs text-gray-500">
-                        {% set now = moment() %}
-                        {% set msg_date = message.timestamp.date() %}
-                        {% set today = now.date() %}
-                        {% set yesterday = (now - timedelta(days=1)).date() %}
-                        
-                        {% if msg_date == today %}
-                            今日 {{ message.timestamp.strftime('%H:%M') }}
-                        {% elif msg_date == yesterday %}
-                            昨日 {{ message.timestamp.strftime('%H:%M') }}
-                        {% else %}
-                            {{ message.timestamp.strftime('%m/%d %H:%M') }}
-                        {% endif %}
+                        {{ message.timestamp.strftime('%H:%M') }}
                     </p>
                     
                     <!-- Message status indicator -->

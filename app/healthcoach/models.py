@@ -61,6 +61,7 @@ class AgentCorePayload(BaseModel):
     jwt_token: str
     timezone: str = "Asia/Tokyo"
     language: str = "ja"
+    session_id: Optional[str] = None
     session_state: Optional[Dict[str, Any]] = None
     
     def to_json_payload(self) -> Dict[str, Any]:
@@ -71,6 +72,10 @@ class AgentCorePayload(BaseModel):
             "timezone": self.timezone,
             "language": self.language
         }
+        
+        # Add session ID if provided
+        if self.session_id:
+            payload["sessionId"] = self.session_id
         
         if self.session_state:
             payload["sessionState"] = self.session_state

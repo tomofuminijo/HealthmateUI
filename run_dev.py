@@ -22,7 +22,7 @@ def load_aws_config():
         cf_client = boto3.client('cloudformation', region_name=region)
         
         # Get stack name from environment or use default
-        stack_name = os.getenv("HEALTH_STACK_NAME", "HealthManagerMCPStack")
+        stack_name = os.getenv("HEALTH_STACK_NAME", "Healthmate-HealthManagerStack")
         
         print(f"   📋 Checking CloudFormation stack: {stack_name}")
         
@@ -114,7 +114,7 @@ def load_aws_config():
                 for runtime in runtimes:
                     runtime_name = runtime.get('agentRuntimeName', '')
                     runtime_id = runtime.get('agentRuntimeId', '')
-                    if 'health_coach_ai' in runtime_name.lower():
+                    if 'healthmate_coach_ai' in runtime_name.lower():
                         os.environ["HEALTH_COACH_AI_RUNTIME_ID"] = runtime_id
                         print(f"   ✅ HealthCoachAI Runtime ID: {runtime_id}")
                         break
@@ -240,7 +240,7 @@ def main():
         print(f"❌ Configuration Error: {e}")
         print("\n💡 Troubleshooting:")
         print("   1. Ensure AWS credentials are configured: aws configure")
-        print("   2. Deploy HealthManagerMCP stack: cd ../HealthManagerMCP && cdk deploy")
+        print("   2. Deploy Healthmate-HealthManager stack: cd ../Healthmate-HealthManager && cdk deploy")
         print("   3. Deploy HealthCoachAI: cd ../HealthCoachAI && ./deploy_to_aws.sh")
         print("   4. Set HEALTH_STACK_NAME if using a different stack name")
         sys.exit(1)

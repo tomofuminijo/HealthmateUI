@@ -52,12 +52,21 @@ class HealthCoachClient:
         try:
             logger.info(f"Sending message to HealthCoachAI: {message[:100]}...")
             
+            # Extract session ID from session_attributes
+            session_id = None
+            if session_attributes and "session_id" in session_attributes:
+                session_id = session_attributes["session_id"]
+                logger.error(f"Using session ID: {session_id}")  # Changed to ERROR for visibility
+            else:
+                logger.error(f"No session ID found in session_attributes: {session_attributes}")  # Debug info
+            
             # Create payload
             payload = AgentCorePayload(
                 prompt=message,
                 jwt_token=jwt_token,
                 timezone=timezone,
                 language=language,
+                session_id=session_id,
                 session_state={
                     "sessionAttributes": session_attributes or {
                         "jwt_token": jwt_token,
@@ -118,12 +127,21 @@ class HealthCoachClient:
         try:
             logger.info(f"Sending streaming message to HealthCoachAI: {message[:100]}...")
             
+            # Extract session ID from session_attributes
+            session_id = None
+            if session_attributes and "session_id" in session_attributes:
+                session_id = session_attributes["session_id"]
+                logger.error(f"Using session ID for streaming: {session_id}")  # Changed to ERROR for visibility
+            else:
+                logger.error(f"No session ID found in session_attributes: {session_attributes}")  # Debug info
+            
             # Create payload
             payload = AgentCorePayload(
                 prompt=message,
                 jwt_token=jwt_token,
                 timezone=timezone,
                 language=language,
+                session_id=session_id,
                 session_state={
                     "sessionAttributes": session_attributes or {
                         "jwt_token": jwt_token,
@@ -168,8 +186,13 @@ class HealthCoachClient:
             # Prepare the payload as JSON bytes
             json_payload = json.dumps(payload).encode('utf-8')
             
-            # Generate session ID if not provided (must be at least 33 characters)
-            session_id = payload.get('sessionId', f'healthmate-session-{uuid.uuid4().hex}')
+            # Use provided session ID or generate new one (must be at least 33 characters)
+            session_id = payload.get('sessionId')
+            if not session_id:
+                session_id = f'healthmate-session-{uuid.uuid4().hex}'
+                logger.error(f"Generated new session ID: {session_id}")  # Changed to ERROR for visibility
+            else:
+                logger.error(f"Using existing session ID: {session_id}")  # Changed to ERROR for visibility
             
             try:
                 # Call the AgentCore Runtime API
@@ -271,8 +294,13 @@ class HealthCoachClient:
             # Prepare the payload as JSON bytes
             json_payload = json.dumps(payload).encode('utf-8')
             
-            # Generate session ID if not provided (must be at least 33 characters)
-            session_id = payload.get('sessionId', f'healthmate-session-{uuid.uuid4().hex}')
+            # Use provided session ID or generate new one (must be at least 33 characters)
+            session_id = payload.get('sessionId')
+            if not session_id:
+                session_id = f'healthmate-session-{uuid.uuid4().hex}'
+                logger.error(f"Generated new session ID for streaming: {session_id}")  # Changed to ERROR for visibility
+            else:
+                logger.error(f"Using existing session ID for streaming: {session_id}")  # Changed to ERROR for visibility
             
             try:
                 # Call the AgentCore Runtime API with streaming

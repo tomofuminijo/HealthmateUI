@@ -1,28 +1,74 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    
+    <!-- htmx -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/style.css') }}">
+</head>
+<body class="bg-gray-50 h-screen overflow-hidden">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <a href="/" class="text-xl font-semibold text-gray-900">
+                        🏥 Healthmate
+                    </a>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button id="logout-btn" class="text-gray-600 hover:text-gray-900">ログアウト</button>
+                </div>
+            </div>
+        </div>
+    </nav>
 
-{% block title %}{{ title }}{% endblock %}
-
-{% block nav_items %}
-<button id="logout-btn" class="text-gray-600 hover:text-gray-900">ログアウト</button>
-{% endblock %}
-
-{% block content %}
-<div class="h-screen flex flex-col">
+    <!-- Chat Container - Full height minus nav -->
+    <div class="chat-container flex flex-col mx-auto w-full max-w-4xl bg-white sm:shadow-lg sm:my-4 sm:rounded-lg overflow-hidden" style="height: calc(100vh - 64px);">
+        <style>
+            @media (min-width: 640px) {
+                .chat-container {
+                    height: calc(100vh - 96px) !important;
+                }
+            }
+        </style>
     <!-- Chat Header -->
-    <div class="bg-white shadow-sm border-b px-6 py-4">
+    <div class="bg-white shadow-sm border-b px-4 sm:px-6 py-4">
         <div class="flex items-center justify-between">
             <div class="flex items-center space-x-3">
                 <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
                     <span class="text-white text-sm font-semibold">🤖</span>
                 </div>
                 <div>
-                    <h1 class="text-lg font-semibold text-gray-900">HealthCoach AI</h1>
-                    <p class="text-sm text-gray-500" id="connection-status">接続中...</p>
+                    <h1 class="text-lg font-semibold text-gray-900">健康コーチ</h1>
+                    <!-- Connection status - only shown when there's an issue -->
+                    <p class="text-sm text-red-500 hidden" id="connection-error">コーチ休憩中です...</p>
                 </div>
             </div>
+            <!-- Chat controls and status -->
             <div class="flex items-center space-x-2">
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    オンライン
+                <!-- New Chat Button -->
+                <button 
+                    id="new-chat-btn"
+                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                    title="新しいチャットセッションを開始">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                    </svg>
+                    新しいチャット
+                </button>
+                
+                <!-- Status indicator - only shown when there's an issue -->
+                <span id="status-indicator" class="hidden inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                    一時的に利用できません
                 </span>
             </div>
         </div>
@@ -32,7 +78,7 @@
     <div class="flex-1 overflow-hidden">
         <div 
             id="chat-messages" 
-            class="h-full overflow-y-auto px-6 py-4 space-y-4"
+            class="h-full overflow-y-auto px-4 sm:px-6 py-4 space-y-4"
             hx-get="/api/chat/history"
             hx-trigger="load"
             hx-swap="innerHTML">
@@ -45,21 +91,18 @@
     </div>
 
     <!-- Chat Input -->
-    <div class="bg-white border-t px-6 py-4">
+    <div class="bg-white border-t px-4 sm:px-6 py-4">
         <form 
             id="chat-form" 
-            class="flex space-x-3"
-            hx-post="/api/chat/send"
-            hx-target="#chat-messages"
-            hx-swap="beforeend"
-            hx-indicator="#send-spinner">
+            class="flex space-x-3">
             <div class="flex-1 relative">
                 <textarea 
                     id="message-input"
                     name="message"
                     rows="1"
                     class="block w-full resize-none border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-all duration-200"
-                    placeholder="メッセージを入力してください... (Enter: 送信, Shift+Enter: 改行, Esc: クリア)"
+                    style="caret-color: auto; padding: 8px 12px;"
+                    placeholder="メッセージを入力してください... (Enter: 送信, Shift+Enter: 改行, Ctrl+Enter: 強制送信, Esc: クリア)"
                     maxlength="1000"
                     required
                     autocomplete="off"
@@ -92,7 +135,7 @@
         <!-- Character Counter and Input Hints -->
         <div class="mt-2 flex justify-between items-center">
             <div class="text-xs text-gray-400">
-                <span class="hidden sm:inline">💡 ヒント: Enterで送信、Shift+Enterで改行、Escでクリア</span>
+                <span class="hidden sm:inline">💡 ヒント: Enterで送信、Shift+Enterで改行、Ctrl+Enterで強制送信、Escでクリア</span>
                 <span class="sm:hidden">💡 Enterで送信</span>
             </div>
             <div class="flex items-center space-x-2">
@@ -107,25 +150,11 @@
             </div>
         </div>
         
-        <!-- Streaming Response Container -->
-        <div id="streaming-response" class="hidden mt-4 p-4 bg-gray-50 rounded-lg">
-            <div class="flex items-start space-x-3">
-                <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                    <span class="text-white text-sm">🤖</span>
-                </div>
-                <div class="flex-1">
-                    <div class="bg-white rounded-lg px-4 py-2">
-                        <p id="streaming-text" class="text-gray-900"></p>
-                        <div id="typing-indicator" class="inline-block w-2 h-4 bg-blue-500 animate-pulse"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-{% endblock %}
 
-{% block scripts %}
+    </div>
+
+    <!-- Custom JavaScript -->
+    <script src="{{ url_for('static', path='/js/app.js') }}"></script>
 <script>
 // Chat functionality with htmx integration
 class ChatInterface {
@@ -137,13 +166,19 @@ class ChatInterface {
         this.sendText = document.getElementById('send-text');
         this.sendSpinner = document.getElementById('send-spinner');
         this.charCounter = document.getElementById('char-counter');
-        this.connectionStatus = document.getElementById('connection-status');
-        this.streamingResponse = document.getElementById('streaming-response');
-        this.streamingText = document.getElementById('streaming-text');
-        this.typingIndicator = document.getElementById('typing-indicator');
+        this.connectionError = document.getElementById('connection-error');
+        this.statusIndicator = document.getElementById('status-indicator');
+        this.streamingResponse = null;
+        this.streamingText = null;
+        this.typingIndicator = null;
+        this.thinkingIndicator = null;
         
         this.eventSource = null;
         this.isStreaming = false;
+        this.isComposing = false; // IME composition state
+        
+        // Initialize session
+        this.sessionId = this.getOrCreateSessionId();
         
         this.init();
     }
@@ -161,6 +196,14 @@ class ChatInterface {
         // Enter key handling
         this.messageInput.addEventListener('keydown', (e) => this.handleKeyDown(e));
         
+        // IME composition handling for Japanese input
+        this.messageInput.addEventListener('compositionstart', () => {
+            this.isComposing = true;
+        });
+        this.messageInput.addEventListener('compositionend', () => {
+            this.isComposing = false;
+        });
+        
         // Focus management
         this.messageInput.addEventListener('focus', () => this.onInputFocus());
         this.messageInput.addEventListener('blur', () => this.onInputBlur());
@@ -170,14 +213,18 @@ class ChatInterface {
             this.clearInput();
         });
         
+        // New chat button
+        document.getElementById('new-chat-btn').addEventListener('click', () => {
+            this.startNewChatSession();
+        });
+        
         // htmx event listeners
         this.setupHtmxEvents();
         
         // Auto-scroll functionality
         this.setupAutoScroll();
         
-        // Set initial status
-        this.connectionStatus.textContent = '準備完了';
+        // Connection status is hidden by default - only shown on errors
         
         // Initialize streaming connection
         this.initializeStreaming();
@@ -218,60 +265,8 @@ class ChatInterface {
     }
     
     setupHtmxEvents() {
-        // Before request
-        document.body.addEventListener('htmx:beforeRequest', (e) => {
-            if (e.target === this.chatForm) {
-                const messageText = this.messageInput.value.trim();
-                if (messageText) {
-                    this.setLoading(true);
-                    this.addUserMessage(messageText);
-                    this.clearInput();
-                } else {
-                    // Prevent empty message submission
-                    e.preventDefault();
-                    this.messageInput.focus();
-                }
-            }
-        });
-        
-        // After request
-        document.body.addEventListener('htmx:afterRequest', (e) => {
-            if (e.target === this.chatForm) {
-                this.setLoading(false);
-                this.scrollToBottom();
-                
-                // Ensure input is ready for next message
-                setTimeout(() => {
-                    this.messageInput.focus();
-                }, 200);
-            }
-        });
-        
-        // Request error
-        document.body.addEventListener('htmx:responseError', (e) => {
-            if (e.target === this.chatForm) {
-                this.setLoading(false);
-                this.addErrorMessage('メッセージの送信に失敗しました。もう一度お試しください。');
-                
-                // Re-enable input and focus for retry
-                setTimeout(() => {
-                    this.messageInput.focus();
-                }, 500);
-            }
-        });
-        
-        // Network error
-        document.body.addEventListener('htmx:sendError', (e) => {
-            if (e.target === this.chatForm) {
-                this.setLoading(false);
-                this.addErrorMessage('ネットワークエラーが発生しました。接続を確認してください。');
-                
-                // Re-enable input and focus for retry
-                setTimeout(() => {
-                    this.messageInput.focus();
-                }, 500);
-            }
-        });
+        // Keep htmx events for chat history loading only
+        // Chat form submission is now handled by custom streaming
     }
     
     initializeStreaming() {
@@ -281,7 +276,7 @@ class ChatInterface {
             
             this.eventSource.onopen = () => {
                 console.log('Streaming connection opened');
-                this.connectionStatus.textContent = '接続済み';
+                this.hideConnectionError();
             };
             
             this.eventSource.onmessage = (event) => {
@@ -290,7 +285,7 @@ class ChatInterface {
             
             this.eventSource.onerror = (error) => {
                 console.error('Streaming error:', error);
-                this.connectionStatus.textContent = '接続エラー';
+                this.showConnectionError();
             };
         }
     }
@@ -335,63 +330,305 @@ class ChatInterface {
     }
     
     startStreaming() {
+        console.log('startStreaming called');
         this.isStreaming = true;
-        this.streamingResponse.classList.remove('hidden');
-        this.streamingText.textContent = '';
-        this.typingIndicator.style.display = 'inline-block';
-        this.connectionStatus.textContent = 'AI応答中...';
+        
+        // Create streaming response element in the chat messages area
+        this.streamingResponse = document.createElement('div');
+        this.streamingResponse.className = 'flex items-start space-x-3';
+        this.streamingResponse.innerHTML = `
+            <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                <span class="text-white text-sm">🤖</span>
+            </div>
+            <div class="flex-1">
+                <div class="bg-gray-100 rounded-lg px-4 py-2">
+                    <div id="thinking-indicator" class="flex items-center space-x-2 text-gray-600">
+                        <span class="text-sm">🤔</span>
+                        <span class="text-sm">考え中</span>
+                        <div class="flex space-x-1">
+                            <div class="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0ms;"></div>
+                            <div class="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 150ms;"></div>
+                            <div class="w-1 h-1 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 300ms;"></div>
+                        </div>
+                    </div>
+                    <p id="streaming-text" class="text-gray-900 whitespace-pre-wrap hidden"></p>
+                    <div id="typing-indicator" class="inline-block w-2 h-4 bg-blue-500 animate-pulse hidden"></div>
+                </div>
+            </div>
+        `;
+        
+        // Add to chat messages area
+        this.chatMessages.appendChild(this.streamingResponse);
+        
+        // Get references to the created elements
+        this.streamingText = document.getElementById('streaming-text');
+        this.typingIndicator = document.getElementById('typing-indicator');
+        this.thinkingIndicator = document.getElementById('thinking-indicator');
+        
+        this.scrollToBottom();
+        
+        console.log('Streaming response created in chat area with thinking indicator');
+        console.log('Streaming text element:', this.streamingText);
     }
     
     completeStreaming() {
         this.isStreaming = false;
-        this.typingIndicator.style.display = 'none';
         
-        // Move streaming content to main chat
-        const finalText = this.streamingText.textContent;
-        if (finalText) {
-            this.addAssistantMessage(finalText);
+        if (this.typingIndicator) {
+            this.typingIndicator.style.display = 'none';
         }
         
-        // Hide streaming container
-        this.streamingResponse.classList.add('hidden');
-        this.connectionStatus.textContent = '準備完了';
+        // Convert streaming response to permanent message
+        const finalText = this.streamingText ? this.streamingText.textContent : '';
+        if (finalText && this.streamingResponse) {
+            // Replace streaming response with permanent message
+            const permanentMessage = this.createMessageElement(finalText, 'assistant');
+            this.chatMessages.replaceChild(permanentMessage, this.streamingResponse);
+        }
+        
+        // Clean up references
+        this.streamingResponse = null;
+        this.streamingText = null;
+        this.typingIndicator = null;
+        this.thinkingIndicator = null;
+        
+        // Connection is working normally - no status display needed
+        
+        // Re-enable input
+        this.setInputDisabled(false);
+        
+        this.scrollToBottom();
+    }
+    
+    async startStreamingResponse(message) {
+        try {
+            console.log('Starting streaming response for message:', message);
+            // Start streaming display
+            this.startStreaming();
+            console.log('Streaming display started');
+            
+            // Create streaming request with session ID
+            console.log('Making fetch request to /api/streaming/chat');
+            const response = await fetch('/api/streaming/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'text/event-stream'
+                },
+                credentials: 'include', // Include cookies for authentication
+                body: JSON.stringify({
+                    message: message,
+                    timezone: 'Asia/Tokyo',
+                    language: 'ja',
+                    session_attributes: {
+                        session_id: this.sessionId
+                    }
+                })
+            });
+            
+            console.log('Fetch response received:', response.status, response.statusText);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            // Process Server-Sent Events
+            console.log('Starting to read response stream');
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            
+            while (true) {
+                const { done, value } = await reader.read();
+                
+                if (done) {
+                    console.log('Stream reading completed');
+                    break;
+                }
+                
+                // Add to buffer
+                const chunk = decoder.decode(value, { stream: true });
+                buffer += chunk;
+                console.log('Received chunk:', chunk);
+                
+                // Process complete lines
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || ''; // Keep incomplete line in buffer
+                
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const eventData = JSON.parse(line.slice(6));
+                            console.log('Parsed event data:', eventData);
+                            this.handleStreamingEvent(eventData);
+                        } catch (e) {
+                            console.error('Error parsing SSE data:', e, 'Line:', line);
+                        }
+                    }
+                }
+            }
+            
+        } catch (error) {
+            console.error('Streaming error:', error);
+            this.addErrorMessage(`ストリーミングエラー: ${error.message}`);
+            this.completeStreaming();
+        }
+    }
+    
+    handleStreamingEvent(eventData) {
+        console.log('Streaming event:', eventData);
+        
+        switch (eventData.event_type) {
+            case 'connected':
+                console.log('Streaming connected');
+                break;
+                
+            case 'user_message':
+                console.log('User message confirmed');
+                break;
+                
+            case 'ai_thinking':
+                // AI is thinking - no status display needed
+                break;
+                
+            case 'ai_chunk':
+                if (eventData.text) {
+                    console.log('Adding text chunk:', eventData.text);
+                    
+                    // Ensure streaming is started
+                    if (!this.isStreaming) {
+                        console.log('Starting streaming because isStreaming is false');
+                        this.startStreaming();
+                    }
+                    
+                    // Hide thinking indicator and show streaming text on first chunk
+                    if (this.thinkingIndicator && !this.thinkingIndicator.classList.contains('hidden')) {
+                        this.thinkingIndicator.classList.add('hidden');
+                        this.streamingText.classList.remove('hidden');
+                        this.typingIndicator.classList.remove('hidden');
+                        console.log('Switched from thinking to streaming display');
+                    }
+                    
+                    this.streamingText.textContent += eventData.text;
+                    console.log('Current streaming text:', this.streamingText.textContent);
+                    this.scrollToBottom();
+                }
+                break;
+                
+            case 'ai_message_complete':
+                console.log('AI message complete');
+                break;
+                
+            case 'complete':
+                this.completeStreaming();
+                break;
+                
+            case 'error':
+                console.error('Streaming error:', eventData.error);
+                this.addErrorMessage(`エラー: ${eventData.error}`);
+                this.completeStreaming();
+                break;
+                
+            case 'disconnected':
+                console.log('Streaming disconnected');
+                break;
+                
+            default:
+                console.log('Unknown streaming event:', eventData);
+        }
     }
     
     handleInput() {
-        this.adjustTextareaHeight();
+        // Use requestAnimationFrame to ensure smooth cursor visibility
+        requestAnimationFrame(() => {
+            this.adjustTextareaHeight();
+        });
     }
     
     handleKeyDown(e) {
-        // Enter key: Send message (unless Shift is held for new line)
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            this.submitMessage();
+        // Check if IME is composing (Japanese input conversion)
+        if (this.isComposing || e.isComposing || e.keyCode === 229) {
+            // During IME composition, don't handle Enter key
+            return;
         }
+        
+        // Shift + Enter: Allow new line (don't prevent default)
+        if (e.key === 'Enter' && e.shiftKey && !e.ctrlKey && !e.metaKey) {
+            // Let the default behavior happen (insert new line)
+            // Don't manually adjust height here - let the input event handle it
+            return;
+        }
+        
         // Ctrl/Cmd + Enter: Force send message even with Shift
-        else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
             e.preventDefault();
             this.submitMessage();
+            return;
         }
+        
+        // Enter key: Send message (only if no modifier keys)
+        if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            this.submitMessage();
+            return;
+        }
+        
         // Escape key: Clear input and focus
-        else if (e.key === 'Escape') {
+        if (e.key === 'Escape') {
             e.preventDefault();
             this.clearInput();
             this.messageInput.focus();
+            return;
         }
-        // Ctrl/Cmd + K: Clear chat (future feature)
-        else if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        
+        // Ctrl/Cmd + K: Clear chat
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
             e.preventDefault();
-            // TODO: Implement clear chat functionality
-            console.log('Clear chat shortcut pressed');
+            this.clearChat();
+            return;
         }
     }
     
     submitMessage() {
         if (!this.sendButton.disabled && this.messageInput.value.trim()) {
+            const messageText = this.messageInput.value.trim();
+            
             // Disable input during submission
             this.setInputDisabled(true);
-            htmx.trigger(this.chatForm, 'submit');
+            
+            // Add user message to chat
+            this.addUserMessage(messageText);
+            
+            // Clear input field and maintain focus (要件 2.4)
+            this.clearInputAndMaintainFocus();
+            
+            // Start streaming response
+            this.startStreamingResponse(messageText);
         }
+    }
+    
+    clearInputAndMaintainFocus() {
+        // Clear the input field
+        this.messageInput.value = '';
+        
+        // Update character counter
+        this.updateCharCounter();
+        
+        // Reset textarea height
+        this.adjustTextareaHeight();
+        
+        // Maintain focus for next message (要件 2.4)
+        // Use setTimeout to ensure the input is ready for focus
+        setTimeout(() => {
+            if (!this.messageInput.disabled) {
+                this.messageInput.focus();
+                // Ensure cursor is visible
+                this.messageInput.setSelectionRange(0, 0);
+            }
+        }, 50);
+        
+        // Update send button state
+        this.updateSendButtonState();
     }
     
     setInputDisabled(disabled) {
@@ -410,8 +647,40 @@ class ChatInterface {
     }
     
     adjustTextareaHeight() {
-        this.messageInput.style.height = 'auto';
-        this.messageInput.style.height = Math.min(this.messageInput.scrollHeight, 120) + 'px';
+        // Save current state
+        const cursorPosition = this.messageInput.selectionStart;
+        const cursorEnd = this.messageInput.selectionEnd;
+        const hasFocus = document.activeElement === this.messageInput;
+        const currentHeight = this.messageInput.style.height;
+        
+        // Calculate new height without changing the current height first
+        const tempElement = this.messageInput.cloneNode(true);
+        tempElement.style.position = 'absolute';
+        tempElement.style.visibility = 'hidden';
+        tempElement.style.height = 'auto';
+        tempElement.style.width = this.messageInput.offsetWidth + 'px';
+        document.body.appendChild(tempElement);
+        
+        const newHeight = Math.min(tempElement.scrollHeight, 120);
+        document.body.removeChild(tempElement);
+        
+        // Only update height if it actually changed
+        if (currentHeight !== newHeight + 'px') {
+            this.messageInput.style.height = newHeight + 'px';
+        }
+        
+        // Force cursor visibility with a micro-delay
+        if (hasFocus) {
+            requestAnimationFrame(() => {
+                this.messageInput.focus();
+                this.messageInput.setSelectionRange(cursorPosition, cursorEnd);
+                // Force a repaint to ensure cursor visibility
+                this.messageInput.style.caretColor = 'transparent';
+                requestAnimationFrame(() => {
+                    this.messageInput.style.caretColor = '';
+                });
+            });
+        }
     }
     
     updateCharCounter() {
@@ -472,7 +741,7 @@ class ChatInterface {
             </div>
             <div class="flex-1">
                 <div class="${bgColor} rounded-lg px-4 py-2">
-                    <p class="text-gray-900">${HealthmateUI.utils.escapeHtml(content)}</p>
+                    <p class="text-gray-900 whitespace-pre-wrap">${HealthmateUI.utils.escapeHtml(content)}</p>
                 </div>
                 <p class="text-xs text-gray-500 mt-1">${timestamp}</p>
             </div>
@@ -489,9 +758,11 @@ class ChatInterface {
         // Ensure input is enabled and focused
         this.setInputDisabled(false);
         
-        // Focus the input field for next message
+        // Focus the input field for next message (要件 2.4)
         setTimeout(() => {
             this.messageInput.focus();
+            // Ensure cursor is positioned at the beginning
+            this.messageInput.setSelectionRange(0, 0);
         }, 50);
     }
     
@@ -499,16 +770,96 @@ class ChatInterface {
         this.setInputDisabled(loading);
         
         if (loading) {
-            this.connectionStatus.textContent = 'メッセージ送信中...';
             this.sendText.textContent = '送信中...';
         } else {
-            this.connectionStatus.textContent = '準備完了';
             this.sendText.textContent = '送信';
         }
     }
     
     scrollToBottom() {
         this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+    }
+    
+    showConnectionError() {
+        if (this.connectionError) {
+            this.connectionError.classList.remove('hidden');
+        }
+        if (this.statusIndicator) {
+            this.statusIndicator.classList.remove('hidden');
+        }
+    }
+    
+    hideConnectionError() {
+        if (this.connectionError) {
+            this.connectionError.classList.add('hidden');
+        }
+        if (this.statusIndicator) {
+            this.statusIndicator.classList.add('hidden');
+        }
+    }
+
+    getOrCreateSessionId() {
+        // Check if we already have a session ID in sessionStorage
+        let sessionId = sessionStorage.getItem('healthmate_chat_session_id');
+        
+        if (!sessionId) {
+            // Generate a new session ID (must be at least 33 characters)
+            const timestamp = Date.now().toString();
+            const randomPart1 = Math.random().toString(36).substr(2, 15);
+            const randomPart2 = Math.random().toString(36).substr(2, 15);
+            sessionId = `healthmate-chat-${timestamp}-${randomPart1}-${randomPart2}`;
+            
+            // Ensure it's at least 33 characters
+            while (sessionId.length < 33) {
+                sessionId += Math.random().toString(36).substr(2, 1);
+            }
+            
+            sessionStorage.setItem('healthmate_chat_session_id', sessionId);
+            console.log('Created new chat session ID:', sessionId, `(${sessionId.length} chars)`);
+        } else {
+            console.log('Using existing chat session ID:', sessionId, `(${sessionId.length} chars)`);
+        }
+        
+        return sessionId;
+    }
+    
+    resetChatSession() {
+        // Clear the session ID to start a new conversation
+        sessionStorage.removeItem('healthmate_chat_session_id');
+        console.log('Chat session reset - new conversation will start');
+    }
+    
+    startNewChatSession() {
+        // Confirm with user before starting new session
+        if (confirm('新しいチャットセッションを開始しますか？\n\n現在の会話は終了し、新しい会話セッションが始まります。\n（注意：あなたの長期記憶は保持されますが、現在のセッションの文脈はリセットされます）')) {
+            // Clear the chat messages display
+            this.chatMessages.innerHTML = '<div class="flex items-center justify-center py-8"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div><span class="ml-2 text-gray-500">新しいセッションを開始中...</span></div>';
+            
+            // Reset the session to start fresh
+            this.resetChatSession();
+            this.sessionId = this.getOrCreateSessionId();
+            
+            // Add welcome message for new session
+            setTimeout(() => {
+                this.chatMessages.innerHTML = '';
+                this.addAssistantMessage('新しいチャットセッションが開始されました！\n\n私はあなたの健康コーチAIです。過去の会話内容を覚えているので、継続的なサポートを提供できます。何かお手伝いできることはありますか？');
+            }, 1000);
+            
+            console.log('New chat session started with session ID:', this.sessionId);
+        }
+    }
+    
+    clearChat() {
+        if (confirm('チャット履歴をクリアしますか？この操作は元に戻せません。')) {
+            // Clear the chat messages display
+            this.chatMessages.innerHTML = '';
+            
+            // Reset the session to start fresh
+            this.resetChatSession();
+            this.sessionId = this.getOrCreateSessionId();
+            
+            console.log('Chat cleared and new session started');
+        }
     }
     
     destroy() {
@@ -543,4 +894,5 @@ document.getElementById('logout-btn').addEventListener('click', async () => {
     }
 });
 </script>
-{% endblock %}
+</body>
+</html>

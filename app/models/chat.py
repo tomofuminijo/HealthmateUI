@@ -183,7 +183,7 @@ class StreamingEvent(BaseModel):
         import json
         
         event_data = {
-            "type": self.event_type,
+            "event_type": self.event_type,
             "timestamp": self.timestamp.isoformat()
         }
         
