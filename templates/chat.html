@@ -157,8 +157,6 @@
 // Chat functionality with htmx integration
 class ChatInterface {
     constructor() {
-        console.log('=== ChatInterface constructor called ===');
-        
         this.messageInput = document.getElementById('message-input');
         this.chatForm = document.getElementById('chat-form');
         this.chatMessages = document.getElementById('chat-messages');
@@ -178,17 +176,13 @@ class ChatInterface {
         this.isComposing = false; // IME composition state
         this.isNewSessionJustCreated = false; // Flag for new session display
         
-        console.log('=== Initializing session ===');
         // Initialize session
         this.sessionId = this.getOrCreateSessionId();
-        console.log('=== Session initialized, calling init() ===');
         
         this.init();
     }
     
     init() {
-        console.log('=== ChatInterface init called ===');
-        
         // Check authentication status first
         this.checkAuthenticationStatus();
         
@@ -232,8 +226,6 @@ class ChatInterface {
             this.handleFormSubmit();
         });
         
-        // Connection status is hidden by default - only shown on errors
-        
         // Initialize streaming connection
         this.initializeStreaming();
         
@@ -255,12 +247,8 @@ class ChatInterface {
     }
     
     checkAuthenticationStatus() {
-        console.log('=== Checking authentication status ===');
-        console.log('Current cookies:', document.cookie);
-        
         // Check if we have authentication cookies
         const hasAuthCookie = document.cookie.includes('healthmate_session');
-        console.log('Has auth cookie:', hasAuthCookie);
         
         if (!hasAuthCookie) {
             console.warn('No authentication cookie found - user may not be logged in');
@@ -1020,11 +1008,8 @@ class ChatInterface {
     }
 
     getOrCreateSessionId() {
-        console.log('=== getOrCreateSessionId called ===');
-        
         // Check if we already have a session ID in sessionStorage
         let sessionId = sessionStorage.getItem('healthmate_chat_session_id');
-        console.log('Existing session ID from storage:', sessionId);
         
         if (!sessionId) {
             // Generate a new session ID (must be at least 33 characters)
@@ -1039,13 +1024,7 @@ class ChatInterface {
             }
             
             sessionStorage.setItem('healthmate_chat_session_id', sessionId);
-            console.log('Created new chat session ID:', sessionId, `(${sessionId.length} chars)`);
-        } else {
-            console.log('Using existing chat session ID:', sessionId, `(${sessionId.length} chars)`);
         }
-        
-        // Debug: Check cookies
-        console.log('Current document.cookie:', document.cookie);
         
         return sessionId;
     }
@@ -1055,7 +1034,7 @@ class ChatInterface {
         sessionStorage.removeItem('healthmate_chat_session_id');
         
         // Don't set persistent flag - let the session naturally be empty
-        console.log('Chat session reset - new conversation will start');
+
     }
     
     startNewChatSession() {
@@ -1079,7 +1058,7 @@ class ChatInterface {
             // This flag should NOT persist across page refreshes
             this.isNewSessionJustCreated = true;
             
-            console.log('New chat session started with session ID:', this.sessionId);
+    
         }
     }
     
@@ -1099,24 +1078,16 @@ class ChatInterface {
     }
     
     loadInitialHistory() {
-        console.log('=== loadInitialHistory called ===');
-        
         // Skip loading if this is a new session that was just created in this page load
         if (this.isNewSessionJustCreated) {
-            console.log('New session just created - skipping history load');
             return;
         }
         
         // Load initial chat history using fetch with session ID
-        console.log('Loading initial history for session:', this.sessionId);
-        
         const historyUrl = `/api/chat/history?session_id=${encodeURIComponent(this.sessionId)}`;
-        console.log('Loading history from URL:', historyUrl);
         
         // Show loading indicator
         this.chatMessages.innerHTML = '<div class="flex items-center justify-center py-8"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div><span class="ml-2 text-gray-500">チャット履歴を読み込み中...</span></div>';
-        
-        console.log('Making fetch request with credentials...');
         
         // Use fetch to ensure cookies are included
         fetch(historyUrl, {
@@ -1127,21 +1098,12 @@ class ChatInterface {
                 'Accept': 'text/html'
             }
         }).then(async (response) => {
-            console.log('Fetch response received:', response.status, response.statusText);
-            console.log('Response headers:', [...response.headers.entries()]);
-            
             if (response.ok) {
                 const html = await response.text();
-                console.log('Response HTML length:', html.length);
-                console.log('Response HTML preview:', html.substring(0, 200));
-                
                 this.chatMessages.innerHTML = html;
-                console.log('Initial chat history loaded successfully');
                 this.scrollToBottom();
             } else if (response.status === 401) {
                 console.error('Authentication failed - user not logged in or session expired');
-                console.log('Current page URL:', window.location.href);
-                console.log('Cookies at time of error:', document.cookie);
                 
                 // Show authentication error message instead of immediate redirect
                 this.chatMessages.innerHTML = `
@@ -1167,10 +1129,8 @@ class ChatInterface {
             }
         }).catch((error) => {
             console.error('Failed to load initial chat history:', error);
-            console.error('Error details:', error.message, error.stack);
             
             // Show welcome message if no history or error
-            console.log('Showing welcome message due to error');
             this.showWelcomeMessage();
         });
     }
@@ -1268,10 +1228,6 @@ class ChatInterface {
             return;
         }
         
-        console.log('=== Form submit - sending message with session ID ===');
-        console.log('Message:', messageText);
-        console.log('Session ID:', this.sessionId);
-        
         // Disable input during submission
         this.setInputDisabled(true);
         
@@ -1298,8 +1254,6 @@ class ChatInterface {
                 })
             });
             
-            console.log('Streaming response status:', response.status);
-            
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
@@ -1316,7 +1270,6 @@ class ChatInterface {
                 const { done, value } = await reader.read();
                 
                 if (done) {
-                    console.log('Streaming completed');
                     break;
                 }
                 
@@ -1397,12 +1350,10 @@ class ChatInterface {
 // Initialize chat interface
 let chatInterface;
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('=== DOMContentLoaded event fired ===');
     try {
         chatInterface = new ChatInterface();
-        console.log('=== ChatInterface created successfully ===');
     } catch (error) {
-        console.error('=== Error creating ChatInterface ===', error);
+        console.error('Error creating ChatInterface:', error);
     }
 });
 

@@ -56,9 +56,9 @@ class HealthCoachClient:
             session_id = None
             if session_attributes and "session_id" in session_attributes:
                 session_id = session_attributes["session_id"]
-                logger.error(f"Using session ID: {session_id}")  # Changed to ERROR for visibility
+                logger.debug(f"Using session ID: {session_id}")
             else:
-                logger.error(f"No session ID found in session_attributes: {session_attributes}")  # Debug info
+                logger.debug(f"No session ID found in session_attributes: {session_attributes}")
             
             # Create payload with proper session attributes structure
             session_attrs = session_attributes or {}
@@ -138,9 +138,9 @@ class HealthCoachClient:
             session_id = None
             if session_attributes and "session_id" in session_attributes:
                 session_id = session_attributes["session_id"]
-                logger.error(f"Using session ID for streaming: {session_id}")  # Changed to ERROR for visibility
+                logger.debug(f"Using session ID for streaming: {session_id}")
             else:
-                logger.error(f"No session ID found in session_attributes: {session_attributes}")  # Debug info
+                logger.debug(f"No session ID found in session_attributes: {session_attributes}")
             
             # Create payload with proper session attributes structure
             session_attrs = session_attributes or {}
@@ -204,9 +204,9 @@ class HealthCoachClient:
             session_id = payload.get('sessionId')
             if not session_id:
                 session_id = f'healthmate-session-{uuid.uuid4().hex}'
-                logger.error(f"Generated new session ID: {session_id}")  # Changed to ERROR for visibility
+                logger.debug(f"Generated new session ID: {session_id}")
             else:
-                logger.error(f"Using existing session ID: {session_id}")  # Changed to ERROR for visibility
+                logger.debug(f"Using existing session ID: {session_id}")
             
             try:
                 # Call the AgentCore Runtime API
@@ -312,9 +312,9 @@ class HealthCoachClient:
             session_id = payload.get('sessionId')
             if not session_id:
                 session_id = f'healthmate-session-{uuid.uuid4().hex}'
-                logger.error(f"Generated new session ID for streaming: {session_id}")  # Changed to ERROR for visibility
+                logger.debug(f"Generated new session ID for streaming: {session_id}")
             else:
-                logger.error(f"Using existing session ID for streaming: {session_id}")  # Changed to ERROR for visibility
+                logger.debug(f"Using existing session ID for streaming: {session_id}")
             
             try:
                 # Call the AgentCore Runtime API with streaming
