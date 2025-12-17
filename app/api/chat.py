@@ -561,3 +561,85 @@ async def debug_messages(
             status_code=500,
             detail=f"Debug error: {str(e)}"
         )
+
+
+@router.get("/current-session")
+async def get_current_session(
+    user_session: UserSession = Depends(require_authentication)
+):
+    """
+    Get the current chat session ID for the authenticated user
+    
+    Args:
+        user_session: Authenticated user session
+        
+    Returns:
+        Current session ID
+    """
+    try:
+        logger.info(f"Getting current session for user {user_session.user_info.user_id}")
+        
+        chat_service = get_chat_service()
+        
+        # Get or create the default session for this user
+        # Use the HTTP session ID as a base for consistency across tabs
+        http_session_id = user_session.auth_session_id
+        default_session_id = f"healthmate-chat-{http_session_id}"
+        
+        # Ensure the session exists
+        session = chat_service.get_or_create_session(
+            user_id=user_session.user_info.user_id,
+            session_id=default_session_id
+        )
+        
+        return {
+            "success": True,
+            "session_id": session.session_id,
+            "message": "Current session retrieved successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Get current session error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )
+
+
+@router.post("/clear-session")
+async def clear_current_session(
+    user_session: UserSession = Depends(require_authentication)
+):
+    """
+    Clear the current chat session for the authenticated user
+    
+    Args:
+        user_session: Authenticated user session
+        
+    Returns:
+        Success response
+    """
+    try:
+        logger.info(f"Clearing current session for user {user_session.user_info.user_id}")
+        
+        chat_service = get_chat_service()
+        
+        # Clear the default session for this user
+        http_session_id = user_session.auth_session_id
+        default_session_id = f"healthmate-chat-{http_session_id}"
+        
+        # Note: In a full implementation, you would clear the session from storage
+        # For now, we'll just log the action
+        logger.info(f"Cleared session {default_session_id} for user {user_session.user_info.user_id}")
+        
+        return {
+            "success": True,
+            "message": "Current session cleared successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Clear current session error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )

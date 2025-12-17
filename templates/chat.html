@@ -176,10 +176,20 @@ class ChatInterface {
         this.isComposing = false; // IME composition state
         this.isNewSessionJustCreated = false; // Flag for new session display
         
-        // Initialize session
-        this.sessionId = this.getOrCreateSessionId();
+        // Initialize session (async)
+        this.sessionId = null;
+        this.initializeSession();
         
         this.init();
+    }
+    
+    async initializeSession() {
+        // Initialize session ID asynchronously
+        this.sessionId = await this.getOrCreateSessionId();
+        console.log('Initialized session ID:', this.sessionId);
+        
+        // Update history loading URL with session ID
+        this.updateHistoryLoadingUrl();
     }
     
     init() {
@@ -237,13 +247,10 @@ class ChatInterface {
         // Initial send button state
         this.updateSendButtonState();
         
-        // Update history loading URL with current session ID
-        this.updateHistoryLoadingUrl();
-        
-        // Load initial chat history (delay to ensure htmx is ready)
+        // Load initial chat history (delay to ensure session is initialized)
         setTimeout(() => {
             this.loadInitialHistory();
-        }, 500);
+        }, 1000);
     }
     
     checkAuthenticationStatus() {
@@ -952,9 +959,31 @@ class ChatInterface {
         }
     }
 
-    getOrCreateSessionId() {
-        // Check if we already have a session ID in sessionStorage
-        let sessionId = sessionStorage.getItem('healthmate_chat_session_id');
+    async getOrCreateSessionId() {
+        // First, try to get the current session ID from the server
+        try {
+            const response = await fetch('/api/chat/current-session', {
+                method: 'GET',
+                credentials: 'include',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.session_id) {
+                    // Store in localStorage to share across tabs
+                    localStorage.setItem('healthmate_chat_session_id', data.session_id);
+                    return data.session_id;
+                }
+            }
+        } catch (error) {
+            console.warn('Failed to get current session from server:', error);
+        }
+        
+        // Fallback: Check localStorage (shared across tabs)
+        let sessionId = localStorage.getItem('healthmate_chat_session_id');
         
         if (!sessionId) {
             // Generate a new session ID (must be at least 33 characters)
@@ -968,29 +997,40 @@ class ChatInterface {
                 sessionId += Math.random().toString(36).substr(2, 1);
             }
             
-            sessionStorage.setItem('healthmate_chat_session_id', sessionId);
+            // Store in localStorage to share across tabs
+            localStorage.setItem('healthmate_chat_session_id', sessionId);
         }
         
         return sessionId;
     }
     
-    resetChatSession() {
+    async resetChatSession() {
         // Clear the session ID to start a new conversation
-        sessionStorage.removeItem('healthmate_chat_session_id');
+        localStorage.removeItem('healthmate_chat_session_id');
         
-        // Don't set persistent flag - let the session naturally be empty
-
+        // Notify server to clear current session
+        try {
+            await fetch('/api/chat/clear-session', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+        } catch (error) {
+            console.warn('Failed to clear session on server:', error);
+        }
     }
     
-    startNewChatSession() {
+    async startNewChatSession() {
         // Confirm with user before starting new session
         if (confirm('新しいチャットセッションを開始しますか？\n\n現在の会話は終了し、新しい会話セッションが始まります。\n（注意：あなたの長期記憶は保持されますが、現在のセッションの文脈はリセットされます）')) {
             // Clear the chat messages display
             this.chatMessages.innerHTML = '<div class="flex items-center justify-center py-8"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div><span class="ml-2 text-gray-500">新しいセッションを開始中...</span></div>';
             
             // Reset the session to start fresh
-            this.resetChatSession();
-            this.sessionId = this.getOrCreateSessionId();
+            await this.resetChatSession();
+            this.sessionId = await this.getOrCreateSessionId();
             
             // Update the htmx history loading URL to use the new session ID
             this.updateHistoryLoadingUrl();
@@ -1009,10 +1049,12 @@ class ChatInterface {
     
     updateHistoryLoadingUrl() {
         // Update the htmx history loading URL to include current session ID
-        const historyUrl = `/api/chat/history?session_id=${encodeURIComponent(this.sessionId)}`;
-        this.chatMessages.setAttribute('hx-get', historyUrl);
-        console.log('Updated history loading URL:', historyUrl);
-        console.log('Current session ID:', this.sessionId);
+        if (this.sessionId) {
+            const historyUrl = `/api/chat/history?session_id=${encodeURIComponent(this.sessionId)}`;
+            this.chatMessages.setAttribute('hx-get', historyUrl);
+            console.log('Updated history loading URL:', historyUrl);
+            console.log('Current session ID:', this.sessionId);
+        }
     }
     
     loadChatHistory() {
@@ -1022,9 +1064,16 @@ class ChatInterface {
         }
     }
     
-    loadInitialHistory() {
+    async loadInitialHistory() {
         // Skip loading if this is a new session that was just created in this page load
         if (this.isNewSessionJustCreated) {
+            return;
+        }
+        
+        // Wait for session ID to be initialized
+        if (!this.sessionId) {
+            console.log('Waiting for session ID to be initialized...');
+            setTimeout(() => this.loadInitialHistory(), 500);
             return;
         }
         
