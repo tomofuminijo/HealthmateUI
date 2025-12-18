@@ -22,7 +22,7 @@ def load_aws_config():
         cf_client = boto3.client('cloudformation', region_name=region)
         
         # Get stack name from environment or use default
-        stack_name = os.getenv("HEALTH_STACK_NAME", "Healthmate-HealthManagerStack")
+        stack_name = os.getenv("HEALTH_STACK_NAME", "ealthmate-CoreStack")
         
         print(f"   📋 Checking CloudFormation stack: {stack_name}")
         
@@ -75,31 +75,6 @@ def load_aws_config():
                 print(f"   ✅ AWS Account ID: {account_id}")
             except Exception as e:
                 print(f"   ⚠️  Could not get AWS Account ID: {e}")
-        
-        # Get Cognito Client Secret using AWS CLI
-        if not os.getenv("COGNITO_CLIENT_SECRET"):
-            user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
-            client_id = os.getenv("COGNITO_CLIENT_ID")
-            
-            if user_pool_id and client_id:
-                try:
-                    cognito_client = boto3.client('cognito-idp', region_name=region)
-                    response = cognito_client.describe_user_pool_client(
-                        UserPoolId=user_pool_id,
-                        ClientId=client_id
-                    )
-                    
-                    client_secret = response['UserPoolClient'].get('ClientSecret')
-                    if client_secret:
-                        os.environ["COGNITO_CLIENT_SECRET"] = client_secret
-                        print(f"   ✅ Cognito Client Secret: {client_secret[:8]}...")
-                    else:
-                        print("   ⚠️  Cognito Client has no secret (public client)")
-                        
-                except Exception as e:
-                    print(f"   ⚠️  Could not get Cognito Client Secret: {e}")
-            else:
-                print("   ⚠️  Cannot get Client Secret: User Pool ID or Client ID missing")
         
         # Try to get HealthCoachAI Runtime ID from Bedrock AgentCore Control API
         if not os.getenv("HEALTH_COACH_AI_RUNTIME_ID"):

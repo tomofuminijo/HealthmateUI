@@ -15,7 +15,7 @@ class Config:
     # Cognito Configuration (from HealthManagerMCP stack)
     COGNITO_USER_POOL_ID = os.getenv("COGNITO_USER_POOL_ID")  # Required - no default
     COGNITO_CLIENT_ID = os.getenv("COGNITO_CLIENT_ID")  # Required - no default
-    COGNITO_CLIENT_SECRET = os.getenv("COGNITO_CLIENT_SECRET")  # Required - no default
+    # COGNITO_CLIENT_SECRET - Not needed for public client (no secret)
     
     # HealthCoachAI Configuration
     HEALTH_COACH_AI_RUNTIME_ID = os.getenv("HEALTH_COACH_AI_RUNTIME_ID")  # Required - no default
@@ -26,7 +26,6 @@ class Config:
             ("AWS_ACCOUNT_ID", self.AWS_ACCOUNT_ID),
             ("COGNITO_USER_POOL_ID", self.COGNITO_USER_POOL_ID),
             ("COGNITO_CLIENT_ID", self.COGNITO_CLIENT_ID),
-            ("COGNITO_CLIENT_SECRET", self.COGNITO_CLIENT_SECRET),
             ("HEALTH_COACH_AI_RUNTIME_ID", self.HEALTH_COACH_AI_RUNTIME_ID),
         ]
         
@@ -86,7 +85,7 @@ class Config:
         return {
             "user_pool_id": self.COGNITO_USER_POOL_ID,
             "client_id": self.COGNITO_CLIENT_ID,
-            "client_secret": self.COGNITO_CLIENT_SECRET,
+            # client_secret not needed for public client
             "domain": self.COGNITO_DOMAIN,
             "authorization_url": self.AUTHORIZATION_URL,
             "token_url": self.TOKEN_URL,

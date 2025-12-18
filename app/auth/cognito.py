@@ -29,7 +29,7 @@ class CognitoAuthClient:
         self.region = app_config.AWS_REGION
         self.user_pool_id = app_config.COGNITO_USER_POOL_ID
         self.client_id = app_config.COGNITO_CLIENT_ID
-        self.client_secret = app_config.COGNITO_CLIENT_SECRET
+        # client_secret not needed for public client
         
         # Initialize boto3 client for Cognito
         self.cognito_client = boto3.client('cognito-idp', region_name=self.region)
@@ -41,16 +41,7 @@ class CognitoAuthClient:
         self._jwks_cache: Optional[Dict[str, Any]] = None
         self._jwks_cache_expiry: Optional[datetime] = None
     
-    def _get_basic_auth_header(self) -> str:
-        """
-        Generate Basic Authentication header for client credentials
-        
-        Returns:
-            str: Basic auth header value
-        """
-        credentials = f"{self.client_id}:{self.client_secret}"
-        encoded_credentials = base64.b64encode(credentials.encode('utf-8')).decode('utf-8')
-        return f"Basic {encoded_credentials}"
+    # _get_basic_auth_header method removed - not needed for public client
     
     async def exchange_code_for_tokens(self, authorization_code: str) -> CognitoTokens:
         """
@@ -74,10 +65,9 @@ class CognitoAuthClient:
                 'redirect_uri': self.config['callback_url']
             }
             
-            # Prepare headers with Basic Authentication
+            # Prepare headers for public client (no authentication needed)
             headers = {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Authorization': self._get_basic_auth_header()
+                'Content-Type': 'application/x-www-form-urlencoded'
             }
             
             logger.debug(f"Making token request to: {self.config['token_url']}")
@@ -149,10 +139,9 @@ class CognitoAuthClient:
                 'refresh_token': refresh_token
             }
             
-            # Prepare headers with Basic Authentication
+            # Prepare headers for public client (no authentication needed)
             headers = {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Authorization': self._get_basic_auth_header()
+                'Content-Type': 'application/x-www-form-urlencoded'
             }
             
             # Make refresh request
