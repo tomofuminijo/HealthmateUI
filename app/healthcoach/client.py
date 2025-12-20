@@ -11,7 +11,7 @@ from datetime import datetime
 
 from ..utils.config import get_config
 from ..utils.logger import setup_logger
-from .models import (
+from ..models.chat import (
     ChatRequest, ChatResponse, StreamingChunk, StreamingResponse, 
     AgentCorePayload, ChatMessage, MessageRole
 )

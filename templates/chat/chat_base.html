@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block head %}
+<style>
+    @media (min-width: 640px) {
+        .chat-container {
+            height: calc(100vh - 96px) !important;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block nav_items %}
+<button id="logout-btn" class="text-gray-600 hover:text-gray-900">ログアウト</button>
+{% endblock %}
+
+{% block content %}
+<!-- Chat Container - Full height minus nav -->
+<div class="chat-container flex flex-col mx-auto w-full max-w-4xl bg-white sm:shadow-lg sm:my-4 sm:rounded-lg overflow-hidden" style="height: calc(100vh - 64px);">
+    
+    {% include "chat/components/chat_header.html" %}
+    
+    <!-- Chat Messages Container -->
+    <div class="flex-1 overflow-hidden">
+        <div 
+            id="chat-messages" 
+            class="h-full overflow-y-auto px-4 sm:px-6 py-4 space-y-4"
+            hx-swap="innerHTML">
+            <!-- Loading indicator -->
+            <div class="flex items-center justify-center py-8">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                <span class="ml-2 text-gray-500">チャット履歴を読み込み中...</span>
+            </div>
+        </div>
+    </div>
+
+    {% include "chat/components/chat_input.html" %}
+    
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Load core application JavaScript -->
+<script src="{{ url_for('static', path='/js/app.js') }}"></script>
+
+<!-- Load JavaScript modules -->
+<script src="{{ url_for('static', path='/js/modules/session-manager.js') }}"></script>
+<script src="{{ url_for('static', path='/js/modules/ui-manager.js') }}"></script>
+<script src="{{ url_for('static', path='/js/modules/message-manager.js') }}"></script>
+<script src="{{ url_for('static', path='/js/modules/streaming-manager.js') }}"></script>
+<script src="{{ url_for('static', path='/js/modules/history-manager.js') }}"></script>
+<script src="{{ url_for('static', path='/js/chat.js') }}"></script>
+<script>
+// Initialize chat interface
+let chatInterface;
+document.addEventListener('DOMContentLoaded', () => {
+    try {
+        chatInterface = new ChatInterface();
+    } catch (error) {
+        console.error('Error creating ChatInterface:', error);
+    }
+});
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    if (chatInterface) {
+        chatInterface.destroy();
+    }
+});
+
+// Logout handler
+document.getElementById('logout-btn').addEventListener('click', async () => {
+    if (confirm('ログアウトしますか？')) {
+        try {
+            await HealthmateUI.auth.logout();
+        } catch (error) {
+            console.error('Logout error:', error);
+            window.location.href = '/login';
+        }
+    }
+});
+</script>
+{% endblock %}

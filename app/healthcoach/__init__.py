@@ -9,7 +9,7 @@ This module provides:
 """
 
 from .client import HealthCoachClient, get_healthcoach_client
-from .models import ChatMessage, ChatResponse, StreamingResponse
+from ..models.chat import ChatMessage, ChatResponse, StreamingResponse
 from .routes import router as healthcoach_router
 
 __all__ = [

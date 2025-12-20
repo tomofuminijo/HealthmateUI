@@ -16,7 +16,7 @@ from .utils.config import get_config
 from .utils.logger import setup_logger
 from .auth import auth_router, add_auth_middleware
 from .healthcoach import healthcoach_router
-from .api import chat_router, streaming_router
+from .api.unified_chat import router as chat_router
 
 # Get configuration and logger
 config = get_config()
@@ -79,11 +79,8 @@ app.include_router(auth_router)
 # Include HealthCoachAI routes
 app.include_router(healthcoach_router)
 
-# Include Chat API routes
+# Include Chat API routes (unified)
 app.include_router(chat_router)
-
-# Include Streaming API routes
-app.include_router(streaming_router)
 
 
 # Health check endpoint
@@ -141,7 +138,7 @@ async def chat_page(request: Request):
         return RedirectResponse(url="/login", status_code=302)
     
     return templates.TemplateResponse(
-        "chat.html",
+        "chat/chat_page.html",
         {
             "request": request,
             "title": "Health Coach - HealthmateUI",
@@ -157,8 +154,7 @@ async def api_status():
     return {
         "api_status": "operational",
         "cognito_configured": bool(config.COGNITO_USER_POOL_ID),
-        "healthcoach_configured": bool(config.HEALTH_COACH_AI_RUNTIME_ID),
-        "mcp_configured": bool(config.MCP_GATEWAY_ENDPOINT)
+        "healthcoach_configured": bool(config.HEALTH_COACH_AI_RUNTIME_ID)
     }
 
 

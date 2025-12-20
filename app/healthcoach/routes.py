@@ -11,7 +11,7 @@ from ..auth import require_authentication, get_current_user
 from ..models.auth import UserSession
 from ..utils.logger import setup_logger
 from .client import get_healthcoach_client
-from .models import ChatRequest, ChatResponse, StreamingChunk
+from ..models.chat import ChatRequest, ChatResponse, StreamingChunk
 
 logger = setup_logger(__name__)
 router = APIRouter(prefix="/api/healthcoach", tags=["healthcoach"])

@@ -1,5 +1,6 @@
 """
-Chat related data models
+Unified chat related data models
+Consolidated from app/models/chat.py and app/healthcoach/models.py
 """
 from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Any
@@ -84,7 +85,7 @@ class ChatHistory(BaseModel):
 
 
 class SendMessageRequest(BaseModel):
-    """Send message request model"""
+    """Send message request model (deprecated - use ChatRequest)"""
     message: str = Field(..., min_length=1, max_length=4000)
     timezone: str = Field(default="Asia/Tokyo")
     language: str = Field(default="ja")
@@ -111,7 +112,7 @@ class SendMessageRequest(BaseModel):
 
 
 class SendMessageResponse(BaseModel):
-    """Send message response model"""
+    """Send message response model (deprecated - use ChatResponse)"""
     success: bool
     message_id: Optional[str] = None
     user_message: Optional[ChatMessage] = None
@@ -147,7 +148,7 @@ class GetHistoryResponse(BaseModel):
 
 
 class StreamingMessageRequest(BaseModel):
-    """Streaming message request model"""
+    """Streaming message request model (deprecated - use ChatRequest with stream=True)"""
     message: str = Field(..., min_length=1, max_length=4000)
     timezone: str = Field(default="Asia/Tokyo")
     language: str = Field(default="ja")
@@ -223,3 +224,110 @@ class ChatSession(BaseModel):
         json_encoders = {
             datetime: lambda v: v.isoformat()
         }
+
+
+# Models from healthcoach integration (consolidated)
+
+class ChatRequest(BaseModel):
+    """Chat request model (unified for both regular and streaming)"""
+    message: str = Field(..., min_length=1, max_length=4000)
+    timezone: str = Field(default="Asia/Tokyo")
+    language: str = Field(default="ja")
+    session_id: Optional[str] = Field(None, description="Chat session ID for continuity")
+    session_attributes: Optional[Dict[str, Any]] = None
+    stream: bool = Field(default=False, description="Enable streaming response")
+    
+    @validator('message')
+    def validate_message(cls, v):
+        """Validate message content"""
+        if not v or not v.strip():
+            raise ValueError("Message cannot be empty")
+        
+        # Check for potentially harmful content
+        harmful_patterns = [
+            r'<script[^>]*>.*?</script>',
+            r'javascript:',
+            r'on\w+\s*=',
+        ]
+        
+        for pattern in harmful_patterns:
+            if re.search(pattern, v, re.IGNORECASE):
+                raise ValueError("Message contains potentially harmful content")
+        
+        return v.strip()
+
+
+class ChatResponse(BaseModel):
+    """Chat response model (unified)"""
+    success: bool
+    message: Optional[str] = None
+    error: Optional[str] = None
+    timestamp: datetime = Field(default_factory=datetime.now)
+    metadata: Optional[Dict[str, Any]] = None
+    
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class StreamingChunk(BaseModel):
+    """Streaming response chunk"""
+    text: str
+    is_complete: bool = False
+    error: Optional[str] = None
+
+
+class StreamingResponse(BaseModel):
+    """Streaming response model"""
+    success: bool
+    chunks: List[StreamingChunk] = Field(default_factory=list)
+    complete_message: Optional[str] = None
+    error: Optional[str] = None
+    timestamp: datetime = Field(default_factory=datetime.now)
+
+
+class AgentCorePayload(BaseModel):
+    """AgentCore Runtime payload model"""
+    prompt: str
+    jwt_token: str
+    timezone: str = "Asia/Tokyo"
+    language: str = "ja"
+    session_id: Optional[str] = None
+    session_state: Optional[Dict[str, Any]] = None
+    
+    def to_json_payload(self) -> Dict[str, Any]:
+        """Convert to JSON payload for AgentCore CLI (optimized to avoid duplication)"""
+        # Minimal payload structure - only essential information
+        payload = {
+            "prompt": self.prompt
+        }
+        
+        # Session state with only required attributes for HealthCoachAI
+        session_attributes = {
+            "session_id": self.session_id,  # Required by HealthCoachAI agent for session continuity
+            "jwt_token": self.jwt_token,    # Required for authentication and user ID extraction
+            "timezone": self.timezone,      # Required for time-aware responses
+            "language": self.language       # Required for language preference
+        }
+        
+        # Filter out attributes that HealthCoachAI doesn't need
+        excluded_attributes = {
+            "user_id",          # Extracted from JWT token by HealthCoachAI
+            "auth_session_id",  # Not used by HealthCoachAI
+            "chat_session_id"   # Redundant with session_id
+        }
+        
+        # Add any additional session attributes from existing session state (filtered)
+        if self.session_state and "sessionAttributes" in self.session_state:
+            additional_attrs = self.session_state["sessionAttributes"]
+            for key, value in additional_attrs.items():
+                # Only add attributes that are not already included and not excluded
+                if key not in session_attributes and key not in excluded_attributes:
+                    session_attributes[key] = value
+        
+        payload["sessionState"] = {
+            "sessionAttributes": session_attributes
+        }
+        
+        return payload

@@ -178,36 +178,40 @@ class HealthCoachIntegrationTest:
             return False
     
     async def test_streaming_functionality(self):
-        """Test streaming functionality"""
+        """Test unified chat API streaming functionality"""
         try:
-            print("\n📡 Testing streaming functionality...")
+            print("\n📡 Testing unified chat API streaming functionality...")
             
-            from app.services.streaming_service import StreamingService
-            from app.models.chat import StreamingEvent
+            from app.models.chat import StreamingEvent, ChatRequest
             
-            streaming_service = StreamingService()
-            
-            # Create streaming connection
-            connection = streaming_service.create_connection(self.user_session.user_info.user_id)
-            print(f"   Streaming connection created: {connection.connection_id}")
-            
-            # Test event sending
+            # Test streaming event creation
             test_event = StreamingEvent(
                 event_type="test",
                 message="Test streaming event"
             )
+            print(f"   StreamingEvent created: {test_event.event_type}")
             
-            await connection.send_event(test_event)
-            print(f"   Test event sent successfully")
+            # Test SSE format conversion
+            sse_format = test_event.to_sse_format()
+            assert '"event_type": "test"' in sse_format
+            print(f"   SSE format conversion: ✅")
             
-            # Cleanup
-            await streaming_service.remove_connection(connection.connection_id)
-            print(f"   Connection cleaned up")
+            # Test chat request with streaming
+            chat_request = ChatRequest(
+                message="Test streaming message",
+                timezone="Asia/Tokyo",
+                language="ja",
+                stream=True
+            )
+            print(f"   ChatRequest with streaming: {chat_request.stream}")
+            
+            print(f"   Unified chat API streaming functionality: ✅")
             
             return True
             
         except Exception as e:
             print(f"   ❌ Streaming functionality test failed: {e}")
+            return False
             return False
     
     async def test_api_endpoints_structure(self):

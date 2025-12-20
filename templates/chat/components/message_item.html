@@ -1,0 +1,65 @@
+<!-- Single Message Item Component -->
+<div class="flex items-start space-x-3 mb-4 animate-fade-in" data-message-id="{{ message.id if message.id else 'temp' }}">
+    <!-- Avatar with status indicator -->
+    <div class="relative">
+        <div class="w-8 h-8 {{ 'bg-gray-400' if message.role == 'user' else 'bg-red-500' if message.status == 'error' else 'bg-blue-500' }} rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
+            <span class="text-white text-sm">
+                {% if message.role == 'user' %}
+                    👤
+                {% elif message.status == 'error' %}
+                    ⚠️
+                {% else %}
+                    🤖
+                {% endif %}
+            </span>
+        </div>
+        <!-- Status indicator for processing messages -->
+        {% if message.status == 'processing' %}
+        <div class="absolute -bottom-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>
+        {% elif message.status == 'error' %}
+        <div class="absolute -bottom-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></div>
+        {% endif %}
+    </div>
+    
+    <!-- Message content -->
+    <div class="flex-1 max-w-3xl">
+        <!-- Message bubble -->
+        <div class="{{ 'bg-blue-100 border-blue-200' if message.role == 'user' else 'bg-red-100 border-red-200' if message.status == 'error' else 'bg-gray-100 border-gray-200' }} rounded-lg px-4 py-3 border shadow-sm">
+            <div class="text-gray-900 leading-relaxed">
+                {% if message.status == 'error' %}
+                    <div class="flex items-start space-x-2">
+                        <span class="text-red-600 font-medium">エラー:</span>
+                        <span>{{ message.content }}</span>
+                    </div>
+                {% else %}
+                    {{ message.content | replace('\n', '<br>') | safe }}
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Message metadata -->
+        <div class="flex items-center justify-between mt-2">
+            <div class="flex items-center space-x-2">
+                <!-- Timestamp with enhanced formatting -->
+                <p class="text-xs text-gray-500">
+                    {{ message.timestamp.strftime('%H:%M') if message.timestamp else '今' }}
+                </p>
+                
+                <!-- Message status indicator -->
+                {% if message.status == 'processing' %}
+                    <span class="text-xs text-yellow-600 flex items-center">
+                        <svg class="animate-spin h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        処理中
+                    </span>
+                {% elif message.status == 'error' %}
+                    <span class="text-xs text-red-600">送信失敗</span>
+                {% elif message.role == 'assistant' %}
+                    <span class="text-xs text-green-600">✓ 配信済み</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>

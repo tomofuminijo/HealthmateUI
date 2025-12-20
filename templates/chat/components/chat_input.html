@@ -1,0 +1,60 @@
+<!-- Chat Input -->
+<div class="bg-white border-t px-4 sm:px-6 py-4">
+    <form 
+        id="chat-form" 
+        class="flex space-x-3">
+        <div class="flex-1 relative">
+            <textarea 
+                id="message-input"
+                name="message"
+                rows="1"
+                class="block w-full resize-none border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-all duration-200"
+                style="caret-color: auto; padding: 8px 12px;"
+                placeholder="メッセージを入力してください... (Enter: 送信, Shift+Enter: 改行, Ctrl+Enter: 強制送信, Esc: クリア)"
+                maxlength="1000"
+                required
+                autocomplete="off"
+                spellcheck="false"></textarea>
+            
+            <!-- Input hint overlay -->
+            <div class="absolute bottom-2 right-2 text-xs text-gray-400 pointer-events-none">
+                <span class="hidden sm:inline">Ctrl+Enter: 送信</span>
+            </div>
+        </div>
+        <button 
+            type="submit"
+            id="send-button"
+            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+            title="メッセージを送信 (Enter または Ctrl+Enter)">
+            <span id="send-text">送信</span>
+            <span id="send-spinner" class="htmx-indicator ml-2">
+                <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            </span>
+            <!-- Send icon -->
+            <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+            </svg>
+        </button>
+    </form>
+    
+    <!-- Character Counter and Input Hints -->
+    <div class="mt-2 flex justify-between items-center">
+        <div class="text-xs text-gray-400">
+            <span class="hidden sm:inline">💡 ヒント: Enterで送信、Shift+Enterで改行、Ctrl+Enterで強制送信、Escでクリア</span>
+            <span class="sm:hidden">💡 Enterで送信</span>
+        </div>
+        <div class="flex items-center space-x-2">
+            <span id="char-counter" class="text-xs text-gray-500">0/1000</span>
+            <button 
+                type="button" 
+                id="clear-input-btn"
+                class="text-xs text-gray-400 hover:text-gray-600 transition-colors duration-200"
+                title="入力をクリア (Esc)">
+                クリア
+            </button>
+        </div>
+    </div>
+</div>
