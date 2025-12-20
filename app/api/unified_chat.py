@@ -149,7 +149,7 @@ async def _handle_regular_response(
             if is_htmx:
                 # Return HTML for htmx
                 return templates.TemplateResponse(
-                    "chat_messages.html",
+                    "chat/messages.html",
                     {
                         "request": request,
                         "messages": [user_message, ai_message]
@@ -182,7 +182,7 @@ async def _handle_regular_response(
                     status=MessageStatus.ERROR
                 )
                 return templates.TemplateResponse(
-                    "chat_messages.html",
+                    "chat/messages.html",
                     {
                         "request": request,
                         "messages": [user_message, error_message]
@@ -211,7 +211,7 @@ async def _handle_regular_response(
                 status=MessageStatus.ERROR
             )
             return templates.TemplateResponse(
-                "chat_messages.html",
+                "chat/messages.html",
                 {
                     "request": request,
                     "messages": [user_message, error_message]
@@ -434,7 +434,7 @@ async def get_chat_history(
         if is_htmx:
             # Return HTML for htmx
             return templates.TemplateResponse(
-                "chat_history.html",
+                "chat/history.html",
                 {
                     "request": request,
                     "messages": messages,
