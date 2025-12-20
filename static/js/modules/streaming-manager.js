@@ -13,15 +13,11 @@ class StreamingManager {
     }
 
     handleStreamingEvent(eventData) {
-        console.log('Streaming event:', eventData);
-        
         switch (eventData.event_type) {
             case 'connected':
-                console.log('Streaming connected');
                 break;
                 
             case 'user_message':
-                console.log('User message confirmed');
                 break;
                 
             case 'ai_thinking':
@@ -32,11 +28,8 @@ class StreamingManager {
                 // Handle chunk events from the unified API
                 const text = eventData.text;
                 if (text) {
-                    console.log('Adding text chunk:', text);
-                    
                     // Ensure streaming is started
                     if (!this.isStreaming) {
-                        console.log('Starting streaming because isStreaming is false');
                         this.startStreaming();
                     }
                     
@@ -45,17 +38,14 @@ class StreamingManager {
                         this.thinkingIndicator.classList.add('hidden');
                         this.streamingText.classList.remove('hidden');
                         this.typingIndicator.classList.remove('hidden');
-                        console.log('Switched from thinking to streaming display');
                     }
                     
                     this.streamingText.textContent += text;
-                    console.log('Current streaming text:', this.streamingText.textContent);
                     this.smartScrollToBottom();
                 }
                 break;
                 
             case 'ai_message_complete':
-                console.log('AI message complete');
                 break;
                 
             case 'complete':
@@ -69,16 +59,14 @@ class StreamingManager {
                 break;
                 
             case 'disconnected':
-                console.log('Streaming disconnected');
                 break;
                 
             default:
-                console.log('Unknown streaming event:', eventData);
+                console.warn('Unknown streaming event type:', eventData.event_type);
         }
     }
 
     startStreaming() {
-        console.log('startStreaming called');
         this.isStreaming = true;
         
         // Create streaming response element in the chat messages area
@@ -114,9 +102,6 @@ class StreamingManager {
         this.thinkingIndicator = document.getElementById('thinking-indicator');
         
         this.scrollToBottom();
-        
-        console.log('Streaming response created in chat area with thinking indicator');
-        console.log('Streaming text element:', this.streamingText);
     }
 
     completeStreaming() {
