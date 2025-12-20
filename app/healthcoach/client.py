@@ -27,6 +27,35 @@ class HealthCoachClient:
         self.config = get_config()
         self.runtime_id = self.config.HEALTH_COACH_AI_RUNTIME_ID
         self.timeout = 60  # 60 seconds timeout
+    
+    def _extract_user_id_from_jwt(self, jwt_token: str) -> Optional[str]:
+        """
+        Extract user ID (sub) from JWT token
+        
+        Args:
+            jwt_token: JWT access token
+            
+        Returns:
+            Optional[str]: User ID (sub field) or None if extraction fails
+        """
+        try:
+            from ..auth.cognito import get_cognito_client
+            
+            # Use Cognito client to decode JWT payload
+            cognito_client = get_cognito_client()
+            payload = cognito_client.decode_jwt_payload(jwt_token)
+            
+            if payload and 'sub' in payload:
+                user_id = payload['sub']
+                logger.debug(f"Successfully extracted user ID from JWT: {user_id}")
+                return user_id
+            else:
+                logger.warning("JWT token payload missing 'sub' field")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Failed to extract user ID from JWT token: {e}")
+            return None
         
     async def send_message(
         self, 
@@ -186,13 +215,28 @@ class HealthCoachClient:
             else:
                 logger.debug(f"Using existing session ID: {session_id}")
             
+            # Extract user ID from JWT token for runtimeUserId
+            runtime_user_id = None
+            jwt_token = payload.get('sessionState', {}).get('sessionAttributes', {}).get('jwt_token')
+            if jwt_token:
+                runtime_user_id = self._extract_user_id_from_jwt(jwt_token)
+                logger.debug(f"Extracted runtime user ID: {runtime_user_id}")
+            
             try:
+                # Prepare invoke parameters
+                invoke_params = {
+                    'agentRuntimeArn': f"arn:aws:bedrock-agentcore:{self.config.AWS_REGION}:{self.config.AWS_ACCOUNT_ID}:runtime/{self.runtime_id}",
+                    'runtimeSessionId': session_id,
+                    'payload': json_payload
+                }
+                
+                # Add runtimeUserId if available
+                if runtime_user_id:
+                    invoke_params['runtimeUserId'] = runtime_user_id
+                    logger.debug(f"Using runtime user ID: {runtime_user_id}")
+                
                 # Call the AgentCore Runtime API
-                response = client.invoke_agent_runtime(
-                    agentRuntimeArn=f"arn:aws:bedrock-agentcore:{self.config.AWS_REGION}:{self.config.AWS_ACCOUNT_ID}:runtime/{self.runtime_id}",
-                    runtimeSessionId=session_id,
-                    payload=json_payload
-                )
+                response = client.invoke_agent_runtime(**invoke_params)
                 
                 # Process the response
                 response_text = ""
@@ -294,13 +338,28 @@ class HealthCoachClient:
             else:
                 logger.debug(f"Using existing session ID for streaming: {session_id}")
             
+            # Extract user ID from JWT token for runtimeUserId
+            runtime_user_id = None
+            jwt_token = payload.get('sessionState', {}).get('sessionAttributes', {}).get('jwt_token')
+            if jwt_token:
+                runtime_user_id = self._extract_user_id_from_jwt(jwt_token)
+                logger.debug(f"Extracted runtime user ID for streaming: {runtime_user_id}")
+            
             try:
+                # Prepare invoke parameters
+                invoke_params = {
+                    'agentRuntimeArn': f"arn:aws:bedrock-agentcore:{self.config.AWS_REGION}:{self.config.AWS_ACCOUNT_ID}:runtime/{self.runtime_id}",
+                    'runtimeSessionId': session_id,
+                    'payload': json_payload
+                }
+                
+                # Add runtimeUserId if available
+                if runtime_user_id:
+                    invoke_params['runtimeUserId'] = runtime_user_id
+                    logger.debug(f"Using runtime user ID for streaming: {runtime_user_id}")
+                
                 # Call the AgentCore Runtime API with streaming
-                response = client.invoke_agent_runtime(
-                    agentRuntimeArn=f"arn:aws:bedrock-agentcore:{self.config.AWS_REGION}:{self.config.AWS_ACCOUNT_ID}:runtime/{self.runtime_id}",
-                    runtimeSessionId=session_id,
-                    payload=json_payload
-                )
+                response = client.invoke_agent_runtime(**invoke_params)
                 
                 # Process streaming response similar to manual_test_deployed_agent.py
                 stream = response["response"]
