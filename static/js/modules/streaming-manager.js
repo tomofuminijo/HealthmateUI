@@ -28,6 +28,8 @@ class StreamingManager {
                 // Handle chunk events from the unified API
                 const text = eventData.text;
                 if (text) {
+                    console.log('Chunk:', text);
+                    
                     // Ensure streaming is started
                     if (!this.isStreaming) {
                         this.startStreaming();
