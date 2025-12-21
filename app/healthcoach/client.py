@@ -1,11 +1,13 @@
 """
-HealthCoachAI client for AgentCore Runtime integration
+HealthCoachAI client for AgentCore Runtime integration with JWT authentication
 """
 import asyncio
 import json
 import subprocess
 import tempfile
 import os
+import urllib.parse
+import httpx
 from typing import AsyncGenerator, Optional, Dict, Any
 from datetime import datetime
 
@@ -20,13 +22,21 @@ logger = setup_logger(__name__)
 
 
 class HealthCoachClient:
-    """HealthCoachAI AgentCore Runtime client"""
+    """HealthCoachAI AgentCore Runtime client with JWT authentication"""
     
     def __init__(self):
         """Initialize the client"""
         self.config = get_config()
         self.runtime_id = self.config.HEALTH_COACH_AI_RUNTIME_ID
         self.timeout = 60  # 60 seconds timeout
+        
+        # Build AgentCore Runtime endpoint URL
+        # Use the correct ARN format: runtime (not agent)
+        self.agent_arn = f"arn:aws:bedrock-agentcore:{self.config.AWS_REGION}:{self.config.AWS_ACCOUNT_ID}:runtime/{self.runtime_id}"
+        escaped_agent_arn = urllib.parse.quote(self.agent_arn, safe='')
+        self.endpoint_url = f"https://bedrock-agentcore.{self.config.AWS_REGION}.amazonaws.com/runtimes/{escaped_agent_arn}/invocations?qualifier=DEFAULT"
+        
+        logger.info(f"HealthCoachAI client initialized with endpoint: {self.endpoint_url}")
     
     def _extract_user_id_from_jwt(self, jwt_token: str) -> Optional[str]:
         """
@@ -186,7 +196,7 @@ class HealthCoachClient:
     
     async def _call_agentcore_api(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Call AgentCore Runtime API and get complete response
+        Call AgentCore Runtime API with JWT authentication and get complete response
         
         Args:
             payload: JSON payload for AgentCore
@@ -195,87 +205,79 @@ class HealthCoachClient:
             Dict with success status and response/error
         """
         try:
-            import boto3
-            import uuid
-            from botocore.exceptions import ClientError
-            
             logger.debug(f"AgentCore API payload: {json.dumps(payload)}")
             
-            # Create Bedrock AgentCore client
-            client = boto3.client('bedrock-agentcore', region_name=self.config.AWS_REGION)
+            # Extract JWT token and session ID from payload
+            session_attrs = payload.get('sessionState', {}).get('sessionAttributes', {})
+            jwt_token = session_attrs.get('jwt_token')
+            session_id = session_attrs.get('session_id')
             
-            # Prepare the payload as JSON bytes
-            json_payload = json.dumps(payload).encode('utf-8')
+            if not jwt_token:
+                return {
+                    "success": False,
+                    "error": "JWT token is required for authentication"
+                }
             
-            # Use provided session ID or generate new one (must be at least 33 characters)
-            session_id = payload.get('sessionId')
+            # Generate session ID if not provided (must be at least 33 characters)
             if not session_id:
+                import uuid
                 session_id = f'healthmate-session-{uuid.uuid4().hex}'
                 logger.debug(f"Generated new session ID: {session_id}")
             else:
                 logger.debug(f"Using existing session ID: {session_id}")
             
-            # Extract user ID from JWT token for runtimeUserId
-            runtime_user_id = None
-            jwt_token = payload.get('sessionState', {}).get('sessionAttributes', {}).get('jwt_token')
-            if jwt_token:
-                runtime_user_id = self._extract_user_id_from_jwt(jwt_token)
-                logger.debug(f"Extracted runtime user ID: {runtime_user_id}")
+            # Prepare headers for JWT authentication
+            headers = {
+                "Authorization": f"Bearer {jwt_token}",
+                "Content-Type": "application/json",
+                "X-Amzn-Bedrock-AgentCore-Runtime-Session-Id": session_id
+            }
             
-            try:
-                # Prepare invoke parameters
-                invoke_params = {
-                    'agentRuntimeArn': f"arn:aws:bedrock-agentcore:{self.config.AWS_REGION}:{self.config.AWS_ACCOUNT_ID}:runtime/{self.runtime_id}",
-                    'runtimeSessionId': session_id,
-                    'payload': json_payload
-                }
+            # Make HTTPS request to AgentCore Runtime
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.post(
+                    self.endpoint_url,
+                    headers=headers,
+                    json=payload
+                )
                 
-                # Add runtimeUserId if available
-                if runtime_user_id:
-                    invoke_params['runtimeUserId'] = runtime_user_id
-                    logger.debug(f"Using runtime user ID: {runtime_user_id}")
+                # Handle HTTP errors
+                if response.status_code == 401:
+                    return {
+                        "success": False,
+                        "error": "JWT認証エラー: アクセストークンが無効です"
+                    }
+                elif response.status_code == 403:
+                    return {
+                        "success": False,
+                        "error": "認可エラー: 必要な権限がありません"
+                    }
+                elif response.status_code != 200:
+                    return {
+                        "success": False,
+                        "error": f"AgentCore Runtime エラー: HTTP {response.status_code}"
+                    }
                 
-                # Call the AgentCore Runtime API
-                response = client.invoke_agent_runtime(**invoke_params)
-                
-                # Process the response
+                # Process streaming response
                 response_text = ""
+                response_content = response.text
                 
-                # Handle streaming response similar to manual_test_deployed_agent.py
-                stream = response["response"]
-                buffer = ""
-                
-                # Read chunks from stream
-                while True:
-                    try:
-                        chunk = stream.read(1024)  # Read 1KB at a time
-                        if not chunk:
-                            break
-                        
-                        # Add to buffer
-                        buffer += chunk.decode('utf-8', errors='ignore')
-                        
-                        # Process complete lines
-                        while '\n' in buffer:
-                            line, buffer = buffer.split('\n', 1)
-                            
-                            if line.startswith('data: '):
-                                try:
-                                    data_json = line[6:]  # Remove "data: " prefix
-                                    if data_json.strip():
-                                        event_data = json.loads(data_json)
-                                        
-                                        # Extract text from contentBlockDelta events
-                                        if 'event' in event_data and 'contentBlockDelta' in event_data['event']:
-                                            delta = event_data['event']['contentBlockDelta'].get('delta', {})
-                                            if 'text' in delta:
-                                                text_chunk = delta['text']
-                                                response_text += text_chunk
-                                except json.JSONDecodeError:
-                                    continue
-                    except Exception:
-                        # Stream ended or error
-                        break
+                # Parse Server-Sent Events format
+                lines = response_content.split('\n')
+                for line in lines:
+                    if line.startswith('data: '):
+                        try:
+                            data_json = line[6:]  # Remove "data: " prefix
+                            if data_json.strip():
+                                event_data = json.loads(data_json)
+                                
+                                # Extract text from contentBlockDelta events
+                                if 'event' in event_data and 'contentBlockDelta' in event_data['event']:
+                                    delta = event_data['event']['contentBlockDelta'].get('delta', {})
+                                    if 'text' in delta:
+                                        response_text += delta['text']
+                        except json.JSONDecodeError:
+                            continue
                 
                 if response_text:
                     return {
@@ -288,15 +290,18 @@ class HealthCoachClient:
                         "error": "No response received from HealthCoachAI"
                     }
                     
-            except ClientError as e:
-                error_code = e.response['Error']['Code']
-                error_message = e.response['Error']['Message']
-                logger.error(f"AgentCore API error: {error_code} - {error_message}")
-                return {
-                    "success": False,
-                    "error": f"AgentCore API error: {error_code} - {error_message}"
-                }
-            
+        except httpx.TimeoutException:
+            logger.error("AgentCore API request timeout")
+            return {
+                "success": False,
+                "error": "Request timeout - HealthCoachAI did not respond in time"
+            }
+        except httpx.RequestError as e:
+            logger.error(f"AgentCore API request error: {e}")
+            return {
+                "success": False,
+                "error": f"Network error: {str(e)}"
+            }
         except Exception as e:
             logger.error(f"AgentCore API call error: {e}")
             return {
@@ -309,7 +314,7 @@ class HealthCoachClient:
         payload: Dict[str, Any]
     ) -> AsyncGenerator[StreamingChunk, None]:
         """
-        Call AgentCore Runtime API with streaming support
+        Call AgentCore Runtime API with JWT authentication and streaming support
         
         Args:
             payload: JSON payload for AgentCore
@@ -318,62 +323,72 @@ class HealthCoachClient:
             StreamingChunk objects with text chunks
         """
         try:
-            import boto3
-            import uuid
-            from botocore.exceptions import ClientError
-            
             logger.debug(f"AgentCore API streaming payload: {json.dumps(payload)}")
             
-            # Create Bedrock AgentCore client
-            client = boto3.client('bedrock-agentcore', region_name=self.config.AWS_REGION)
+            # Extract JWT token and session ID from payload
+            session_attrs = payload.get('sessionState', {}).get('sessionAttributes', {})
+            jwt_token = session_attrs.get('jwt_token')
+            session_id = session_attrs.get('session_id')
             
-            # Prepare the payload as JSON bytes
-            json_payload = json.dumps(payload).encode('utf-8')
+            if not jwt_token:
+                yield StreamingChunk(
+                    text="",
+                    is_complete=True,
+                    error="JWT token is required for authentication"
+                )
+                return
             
-            # Use provided session ID or generate new one (must be at least 33 characters)
-            session_id = payload.get('sessionId')
+            # Generate session ID if not provided (must be at least 33 characters)
             if not session_id:
+                import uuid
                 session_id = f'healthmate-session-{uuid.uuid4().hex}'
                 logger.debug(f"Generated new session ID for streaming: {session_id}")
             else:
                 logger.debug(f"Using existing session ID for streaming: {session_id}")
             
-            # Extract user ID from JWT token for runtimeUserId
-            runtime_user_id = None
-            jwt_token = payload.get('sessionState', {}).get('sessionAttributes', {}).get('jwt_token')
-            if jwt_token:
-                runtime_user_id = self._extract_user_id_from_jwt(jwt_token)
-                logger.debug(f"Extracted runtime user ID for streaming: {runtime_user_id}")
+            # Prepare headers for JWT authentication
+            headers = {
+                "Authorization": f"Bearer {jwt_token}",
+                "Content-Type": "application/json",
+                "X-Amzn-Bedrock-AgentCore-Runtime-Session-Id": session_id
+            }
             
-            try:
-                # Prepare invoke parameters
-                invoke_params = {
-                    'agentRuntimeArn': f"arn:aws:bedrock-agentcore:{self.config.AWS_REGION}:{self.config.AWS_ACCOUNT_ID}:runtime/{self.runtime_id}",
-                    'runtimeSessionId': session_id,
-                    'payload': json_payload
-                }
-                
-                # Add runtimeUserId if available
-                if runtime_user_id:
-                    invoke_params['runtimeUserId'] = runtime_user_id
-                    logger.debug(f"Using runtime user ID for streaming: {runtime_user_id}")
-                
-                # Call the AgentCore Runtime API with streaming
-                response = client.invoke_agent_runtime(**invoke_params)
-                
-                # Process streaming response similar to manual_test_deployed_agent.py
-                stream = response["response"]
-                buffer = ""
-                
-                # Read chunks from stream
-                while True:
-                    try:
-                        chunk = stream.read(1024)  # Read 1KB at a time
-                        if not chunk:
-                            break
-                        
-                        # Add to buffer
-                        buffer += chunk.decode('utf-8', errors='ignore')
+            # Make streaming HTTPS request to AgentCore Runtime
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                async with client.stream(
+                    "POST",
+                    self.endpoint_url,
+                    headers=headers,
+                    json=payload
+                ) as response:
+                    
+                    # Handle HTTP errors
+                    if response.status_code == 401:
+                        yield StreamingChunk(
+                            text="",
+                            is_complete=True,
+                            error="JWT認証エラー: アクセストークンが無効です"
+                        )
+                        return
+                    elif response.status_code == 403:
+                        yield StreamingChunk(
+                            text="",
+                            is_complete=True,
+                            error="認可エラー: 必要な権限がありません"
+                        )
+                        return
+                    elif response.status_code != 200:
+                        yield StreamingChunk(
+                            text="",
+                            is_complete=True,
+                            error=f"AgentCore Runtime エラー: HTTP {response.status_code}"
+                        )
+                        return
+                    
+                    # Process streaming response
+                    buffer = ""
+                    async for chunk in response.aiter_text():
+                        buffer += chunk
                         
                         # Process complete lines
                         while '\n' in buffer:
@@ -400,26 +415,27 @@ class HealthCoachClient:
                                             logger.debug(f"Streaming event: {event_data}")
                                 except json.JSONDecodeError:
                                     continue
-                    except Exception:
-                        # Stream ended or error
-                        break
-                
-                # Send completion chunk
-                yield StreamingChunk(
-                    text="",
-                    is_complete=True
-                )
-                
-            except ClientError as e:
-                error_code = e.response['Error']['Code']
-                error_message = e.response['Error']['Message']
-                logger.error(f"AgentCore API streaming error: {error_code} - {error_message}")
-                yield StreamingChunk(
-                    text="",
-                    is_complete=True,
-                    error=f"AgentCore API error: {error_code} - {error_message}"
-                )
-                
+                    
+                    # Send completion chunk
+                    yield StreamingChunk(
+                        text="",
+                        is_complete=True
+                    )
+                    
+        except httpx.TimeoutException:
+            logger.error("AgentCore API streaming request timeout")
+            yield StreamingChunk(
+                text="",
+                is_complete=True,
+                error="Request timeout - HealthCoachAI did not respond in time"
+            )
+        except httpx.RequestError as e:
+            logger.error(f"AgentCore API streaming request error: {e}")
+            yield StreamingChunk(
+                text="",
+                is_complete=True,
+                error=f"Network error: {str(e)}"
+            )
         except Exception as e:
             logger.error(f"AgentCore API streaming error: {e}")
             yield StreamingChunk(
